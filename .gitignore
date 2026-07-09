@@ -1,0 +1,45 @@
+# --- Environment / secrets ---
+.env
+.env.production
+
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+*.egg
+build/
+dist/
+
+# --- Virtual environment ---
+venv/
+env/
+.venv/
+
+# --- Whisper model weights (large binaries, don't commit) ---
+whisper_models/
+
+# --- Temp audio (should already get deleted at runtime, but just in case) ---
+temp_audio/
+*.wav
+*.mp3
+*.m4a
+
+# --- pytest / coverage (Stage 8) ---
+.pytest_cache/
+.coverage
+htmlcov/
+
+# --- Alembic (keep versions/, ignore nothing here — migrations SHOULD be committed) ---
+# (intentionally no alembic ignores — migration files belong in git)
+
+# --- Editor / IDE ---
+.vscode/
+.idea/
+*.swp
+
+# --- OS cruft ---
+.DS_Store
+Thumbs.db

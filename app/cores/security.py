@@ -7,7 +7,8 @@ from starlette.exceptions import HTTPException
 from app.cores.config import settings
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
-
+import random
+from datetime import datetime, timedelta
 from app.cores.database import get_db
 from app.models.user import User
 
@@ -52,3 +53,10 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     user = db.query(User).filter(User.id == user_id).first()
 
     return user
+
+def generate_otp() -> str:
+    return f"{random.randint(0, 999999):06d}"
+
+
+def get_otp_expiry() -> datetime:
+    return datetime.utcnow() + timedelta(minutes=10)

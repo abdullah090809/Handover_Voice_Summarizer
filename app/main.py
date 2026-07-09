@@ -1,9 +1,16 @@
 from fastapi import FastAPI
 from sqlalchemy import text
+from slowapi.errors import RateLimitExceeded
+from slowapi import _rate_limit_exceeded_handler
+
 from app.cores.database import engine
+from app.cores.limiter import limiter
 from app.routers import auth, care_homes, handover, residents, shifts
 
 app = FastAPI()
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.include_router(auth.router)
 app.include_router(care_homes.router)

@@ -6,6 +6,8 @@ from app.models.care_home import CareHome
 from app.models.resident import Resident
 from app.models.shift import Shift
 from sqlalchemy import engine_from_config
+from app.models.handover_note import HandoverNote
+from app.models.pending_user import PendingUser
 from sqlalchemy import pool
 
 from alembic import context

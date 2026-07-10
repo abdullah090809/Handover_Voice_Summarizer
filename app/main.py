@@ -5,7 +5,7 @@ from slowapi import _rate_limit_exceeded_handler
 
 from app.cores.database import engine
 from app.cores.limiter import limiter
-from app.routers import auth, care_homes, handover, residents, shifts
+from app.routers import auth, care_homes, handover, residents, shifts, user
 
 app = FastAPI()
 
@@ -17,6 +17,7 @@ app.include_router(care_homes.router)
 app.include_router(residents.router)
 app.include_router(handover.router)
 app.include_router(shifts.router)
+app.include_router(user.router)
 
 @app.get("/")
 def root():

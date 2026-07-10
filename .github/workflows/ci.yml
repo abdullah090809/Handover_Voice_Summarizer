@@ -1,0 +1,61 @@
+name: CI/CD
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    environment: CI
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ${{ secrets.DATABASE_USERNAME }}
+          POSTGRES_PASSWORD: ${{ secrets.DATABASE_PASSWORD }}
+          POSTGRES_DB: ${{ secrets.TEST_DATABASE_NAME }}
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      database_hostname: localhost
+      database_port: 5432
+      database_username: ${{ secrets.DATABASE_USERNAME }}
+      database_password: ${{ secrets.DATABASE_PASSWORD }}
+      database_name: ${{ secrets.TEST_DATABASE_NAME }}
+      test_database_name: ${{ secrets.TEST_DATABASE_NAME }}
+      secret_key: ${{ secrets.SECRET_KEY }}
+      algorithm: ${{ secrets.ALGORITHM }}
+      access_token_expire_minutes: ${{ secrets.ACCESS_TOKEN_EXPIRE_MINUTES }}
+      gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+      resend_api_key: ${{ secrets.RESEND_API_KEY }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Alembic migrations
+        run: alembic upgrade head
+
+      - name: Run tests
+        run: pytest -v

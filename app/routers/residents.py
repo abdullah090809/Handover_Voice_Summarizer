@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.cores.database import get_db
 from app.cores.security import get_current_user
+from app.models.care_home import CareHome
 from app.models.resident import Resident
 from app.models.user import User
 from app.schemas.resident import ResidentCreate, ResidentOut
@@ -16,6 +17,13 @@ def create_resident(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    care_home = db.query(CareHome).filter(CareHome.id == resident.care_home_id).first()
+    if not care_home:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Care home with id {resident.care_home_id} not found",
+        )
+
     new_resident = Resident(**resident.model_dump())
     db.add(new_resident)
     db.commit()

@@ -35,3 +35,19 @@ def send_urgent_handover_email(to_email: str, resident_name: str | None, summary
             """,
         }
     )
+
+def send_password_reset_email(to_email: str, otp_code: str):
+    resend.Emails.send(
+        {
+            "from": "onboarding@resend.dev",
+            "to": to_email,
+            "subject": "Reset your password — Handover Voice Summarizer",
+            "html": f"""
+                <h2>Reset your password</h2>
+                <p>Your password reset code is:</p>
+                <h1 style="letter-spacing: 4px;">{otp_code}</h1>
+                <p>This code expires in 10 minutes.</p>
+                <p>If you didn't request this, you can safely ignore this email.</p>
+            """,
+        }
+    )

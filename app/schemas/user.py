@@ -19,3 +19,20 @@ class UserLogin(BaseModel):
 class VerifyOTP(BaseModel):
     email: EmailStr
     otp_code: str
+
+class AssignCareHome(BaseModel):
+    care_home_id: int
+
+class ForgotPassword(BaseModel):
+    email: EmailStr
+
+
+class ResetPassword(BaseModel):
+    email: EmailStr
+    otp_code: str
+    new_password: str
+
+
+class ChangePassword(BaseModel):
+    current_password: str
+    new_password: str

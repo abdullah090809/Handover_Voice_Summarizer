@@ -2,10 +2,8 @@ import os
 import shutil
 import tempfile
 from datetime import date
-
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from sqlalchemy.orm import Session
-
 from app.cores.database import get_db
 from app.cores.security import get_current_user
 from app.models.handover_note import HandoverNote
@@ -13,6 +11,7 @@ from app.models.resident import Resident
 from app.models.shift import Shift
 from app.models.user import User
 from app.schemas.handover_note import HandoverNoteOut
+from app.services.email import send_urgent_handover_email
 from app.services.summarizer import summarize_transcript
 from app.services.transcription import transcribe_audio
 
@@ -74,6 +73,24 @@ def transcribe_handover_audio(
     db.add(new_note)
     db.commit()
     db.refresh(new_note)
+
+    if new_note.urgency_flag in ["high", "urgent"]:
+        managers = (
+            db.query(User)
+            .filter(User.care_home_id == resident.care_home_id, User.role == "manager")
+            .all()
+        )
+        summary_text = structured_summary.get("summary", "")
+        for manager in managers:
+            try:
+                send_urgent_handover_email(
+                    to_email=manager.email,
+                    resident_name=resident.name,
+                    summary=summary_text,
+                    note_id=new_note.id,
+                )
+            except Exception:
+                pass
 
     return new_note
 

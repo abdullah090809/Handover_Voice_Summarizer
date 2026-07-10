@@ -1,9 +1,10 @@
 from datetime import datetime, timedelta, timezone
-
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-
+from app.models.password_reset import PasswordReset
+from app.schemas.user import ForgotPassword, ResetPassword
+from app.services.email import send_password_reset_email
 from app.cores.database import get_db
 from app.cores.limiter import limiter
 from app.cores.security import (
@@ -39,7 +40,22 @@ def _check_and_increment_otp_limit(pending: PendingUser, db: Session):
                 detail="Too many verification code requests today. Please try again tomorrow.",
             )
         pending.otp_request_count += 1
+def _check_and_increment_reset_limit(reset: PasswordReset, db: Session):
+    now = datetime.now(timezone.utc)
+    window_start = reset.otp_window_start
+    if window_start.tzinfo is None:
+        window_start = window_start.replace(tzinfo=timezone.utc)
 
+    if now - window_start > timedelta(hours=24):
+        reset.otp_request_count = 1
+        reset.otp_window_start = now
+    else:
+        if reset.otp_request_count >= MAX_OTP_REQUESTS_PER_DAY:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many password reset requests today. Please try again tomorrow.",
+            )
+        reset.otp_request_count += 1
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 @limiter.limit("5/minute")
@@ -138,6 +154,74 @@ def verify_email(payload: VerifyOTP, db: Session = Depends(get_db)):
     db.refresh(new_user)
 
     return new_user
+
+@router.post("/forgot-password")
+@limiter.limit("5/minute")
+def forgot_password(request: Request, payload: ForgotPassword, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == payload.email).first()
+    if not user:
+        return {"message": "If that email is registered, a reset code has been sent"}
+
+    existing_reset = db.query(PasswordReset).filter(PasswordReset.email == payload.email).first()
+    otp_code = generate_otp()
+
+    if existing_reset:
+        _check_and_increment_reset_limit(existing_reset, db)
+        existing_reset.otp_code = otp_code
+        existing_reset.otp_expires_at = get_otp_expiry()
+        db.commit()
+    else:
+        new_reset = PasswordReset(
+            email=payload.email,
+            otp_code=otp_code,
+            otp_expires_at=get_otp_expiry(),
+        )
+        db.add(new_reset)
+        db.commit()
+
+    send_password_reset_email(to_email=payload.email, otp_code=otp_code)
+
+    return {"message": "If that email is registered, a reset code has been sent"}
+
+
+@router.post("/reset-password")
+def reset_password(payload: ResetPassword, db: Session = Depends(get_db)):
+    reset = db.query(PasswordReset).filter(PasswordReset.email == payload.email).first()
+
+    if not reset:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset code",
+        )
+
+    if reset.otp_code != payload.otp_code:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid reset code",
+        )
+
+    otp_expires_at = reset.otp_expires_at
+    if otp_expires_at.tzinfo is None:
+        otp_expires_at = otp_expires_at.replace(tzinfo=timezone.utc)
+
+    if otp_expires_at < datetime.now(timezone.utc):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Reset code has expired, please request a new one",
+        )
+
+    user = db.query(User).filter(User.email == payload.email).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    user.password = hash_password(payload.new_password)
+    db.delete(reset)
+    db.commit()
+
+    return {"message": "Password reset successfully"}
 
 
 @router.post("/login")

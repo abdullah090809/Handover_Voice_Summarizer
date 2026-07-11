@@ -1,6 +1,10 @@
+import logging
+
 import resend
 
 from app.cores.config import settings
+
+logger = logging.getLogger(__name__)
 
 resend.api_key = settings.resend_api_key
 
@@ -35,6 +39,7 @@ def send_urgent_handover_email(to_email: str, resident_name: str | None, summary
             """,
         }
     )
+
 
 def send_password_reset_email(to_email: str, otp_code: str):
     resend.Emails.send(

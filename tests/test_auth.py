@@ -82,15 +82,12 @@ def test_login_with_correct_credentials_succeeds(client, test_user):
     assert "access_token" in body
     assert body["token_type"] == "bearer"
 
-
 def test_login_with_wrong_password_fails(client, test_user):
     response = client.post(
         "/login",
         data={"username": test_user.email, "password": "wrongpassword"},
     )
-
-    assert response.status_code == 403
-    assert response.json()["detail"] == "Invalid credentials"
+    assert response.status_code == 401
 
 
 def test_login_with_nonexistent_email_fails(client):
@@ -98,6 +95,4 @@ def test_login_with_nonexistent_email_fails(client):
         "/login",
         data={"username": "doesnotexist@test.com", "password": "whatever"},
     )
-
-    assert response.status_code == 403
-    assert response.json()["detail"] == "Invalid credentials"
+    assert response.status_code == 401

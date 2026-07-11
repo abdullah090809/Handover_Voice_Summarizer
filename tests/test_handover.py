@@ -1,8 +1,6 @@
 import io
 from unittest.mock import patch
 from app.models.handover_note import HandoverNote
-from app.models.handover_note import HandoverNote
-from app.models.handover_note import HandoverNote
 from app.cores.security import create_access_token, hash_password
 from app.models.shift import Shift
 from app.models.user import User
@@ -38,15 +36,21 @@ def test_transcribe_creates_handover_note(client, worker_auth_headers, test_shif
             headers=worker_auth_headers,
         )
 
-    assert response.status_code == 201
-    body = response.json()
-    assert body["urgency_flag"] == "low"
-    assert body["raw_transcript"] == "Patient ate lunch, no concerns."
-    assert body["summary_json"]["resident_name"] == "Jane Doe"
+    assert response.status_code == 202
+    note_id = response.json()["id"]
 
     mock_transcribe.assert_called_once()
     mock_summarize.assert_called_once()
     mock_email.assert_not_called()
+
+    # background task has already completed synchronously under TestClient
+    detail = client.get(f"/handover/{note_id}", headers=worker_auth_headers)
+    assert detail.status_code == 200
+    body = detail.json()
+    assert body["status"] == "complete"
+    assert body["urgency_flag"] == "low"
+    assert body["raw_transcript"] == "Patient ate lunch, no concerns."
+    assert body["summary_json"]["resident_name"] == "Jane Doe"
 
 
 def test_transcribe_requires_auth(client, test_shift, test_resident):
@@ -75,7 +79,7 @@ def test_transcribe_nonexistent_shift_returns_404(client, worker_auth_headers, t
 
 
 def test_transcribe_shift_not_owned_by_user_forbidden(client, db_session, test_care_home, test_resident):
-    
+
     other_worker = User(
         email="shiftowner@test.com",
         password=hash_password("password123"),
@@ -144,8 +148,14 @@ def test_transcribe_summarizer_failure_returns_502(client, worker_auth_headers, 
             headers=worker_auth_headers,
         )
 
-    assert response.status_code == 502
-    assert response.json()["detail"] == "Failed to generate structured summary from transcript"
+    # request is accepted; the failure happens in the background task
+    assert response.status_code == 202
+    note_id = response.json()["id"]
+
+    detail = client.get(f"/handover/{note_id}", headers=worker_auth_headers)
+    body = detail.json()
+    assert body["status"] == "failed"
+    assert body["error_message"] == "Structured summary generation failed"
 
 
 def test_transcribe_high_urgency_emails_managers(client, worker_auth_headers, test_shift, test_resident, test_manager):
@@ -160,8 +170,12 @@ def test_transcribe_high_urgency_emails_managers(client, worker_auth_headers, te
             headers=worker_auth_headers,
         )
 
-    assert response.status_code == 201
-    assert response.json()["urgency_flag"] == "high"
+    assert response.status_code == 202
+    note_id = response.json()["id"]
+
+    detail = client.get(f"/handover/{note_id}", headers=worker_auth_headers)
+    assert detail.json()["urgency_flag"] == "high"
+    assert detail.json()["status"] == "complete"
 
     mock_email.assert_called_once()
     call_kwargs = mock_email.call_args.kwargs
@@ -181,7 +195,12 @@ def test_transcribe_high_urgency_email_failure_does_not_break_request(client, wo
             headers=worker_auth_headers,
         )
 
-    assert response.status_code == 201
+    # email failure must not fail the request or corrupt the note's status
+    assert response.status_code == 202
+    note_id = response.json()["id"]
+
+    detail = client.get(f"/handover/{note_id}", headers=worker_auth_headers)
+    assert detail.json()["status"] == "complete"
 
 
 def test_list_handover_notes(client, worker_auth_headers, test_shift, test_resident, db_session):

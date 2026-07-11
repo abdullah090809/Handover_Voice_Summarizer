@@ -1,8 +1,11 @@
 import json
+import logging
 
 import google.generativeai as genai
 
 from app.cores.config import settings
+
+logger = logging.getLogger(__name__)
 
 genai.configure(api_key=settings.gemini_api_key)
 
@@ -49,4 +52,10 @@ def summarize_transcript(transcript: str) -> dict:
             raw_text = raw_text[4:]
         raw_text = raw_text.strip()
 
-    return json.loads(raw_text)
+    try:
+        return json.loads(raw_text)
+    except json.JSONDecodeError:
+        # Issue #19 fix: log the actual malformed payload instead of letting
+        # the caller's generic `except Exception` swallow it with no trace.
+        logger.exception("Gemini returned non-JSON output: %r", raw_text)
+        raise

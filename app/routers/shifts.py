@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.cores.database import get_db
@@ -25,10 +25,19 @@ def create_shift(
 
 @router.get("/", response_model=list[ShiftOut])
 def list_my_shifts(
+    # Issue #11 fix: bounded pagination instead of an unbounded .all().
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return db.query(Shift).filter(Shift.worker_id == current_user.id).all()
+    return (
+        db.query(Shift)
+        .filter(Shift.worker_id == current_user.id)
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
 
 
 @router.get("/{id}", response_model=ShiftOut)

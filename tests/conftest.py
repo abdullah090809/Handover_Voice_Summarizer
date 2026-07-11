@@ -24,7 +24,16 @@ SQLALCHEMY_TEST_DATABASE_URL = (
 engine = create_engine(SQLALCHEMY_TEST_DATABASE_URL)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+@pytest.fixture(autouse=True)
+def _patch_background_task_session(monkeypatch, db_session):
+    """
+    _process_handover_note() calls SessionLocal() directly (not via DI),
+    so without this it writes to the real app database instead of the
+    test database, and test assertions never see its writes.
+    """
+    monkeypatch.setattr("app.routers.handover.SessionLocal", TestingSessionLocal)
 
+    
 @pytest.fixture()
 def db_session():
     Base.metadata.drop_all(bind=engine)
@@ -39,6 +48,7 @@ def db_session():
 @pytest.fixture()
 def client(db_session):
     def override_get_db():
+        db_session.expire_all()  # avoid stale identity-map reads across requests
         try:
             yield db_session
         finally:

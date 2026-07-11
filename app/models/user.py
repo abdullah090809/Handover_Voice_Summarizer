@@ -12,7 +12,14 @@ class User(Base):
     email = Column(String, nullable=False, unique=True)
     password = Column(String, nullable=False)
     role = Column(String, nullable=False, server_default="care_worker")
-    care_home_id = Column(Integer, ForeignKey("care_homes.id", ondelete="SET NULL"), nullable=True)
+    # Issue #10 fix: index the FK — Postgres does not auto-index FK columns,
+    # and this column is filtered on in residents/handover tenant-scoping.
+    care_home_id = Column(
+        Integer,
+        ForeignKey("care_homes.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     created_at = Column(
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
     )

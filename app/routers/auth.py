@@ -1,10 +1,11 @@
+import hmac
 from datetime import datetime, timedelta, timezone
+from typing import Protocol
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from app.models.password_reset import PasswordReset
-from app.schemas.user import ForgotPassword, ResetPassword
-from app.services.email import send_password_reset_email
+
 from app.cores.database import get_db
 from app.cores.limiter import limiter
 from app.cores.security import (
@@ -14,48 +15,51 @@ from app.cores.security import (
     hash_password,
     verify_password,
 )
+from app.models.password_reset import PasswordReset
 from app.models.pending_user import PendingUser
 from app.models.user import User
-from app.schemas.user import UserCreate, UserOut, VerifyOTP
-from app.services.email import send_verification_email
+from app.schemas.token import Token
+from app.schemas.user import (
+    ForgotPassword,
+    ResendOTP,
+    ResetPassword,
+    UserCreate,
+    UserOut,
+    VerifyOTP,
+)
+from app.services.email import send_password_reset_email, send_verification_email
 
 router = APIRouter(tags=["Auth"])
 
 MAX_OTP_REQUESTS_PER_DAY = 5
 
 
-def _check_and_increment_otp_limit(pending: PendingUser, db: Session):
+# Issue #16 fix: a single generic rate-limit helper (via a structural
+# Protocol) replaces the two near-identical
+# `_check_and_increment_otp_limit` / `_check_and_increment_reset_limit`
+# functions that used to exist here, one per model.
+class _OtpRateLimited(Protocol):
+    otp_request_count: int
+    otp_window_start: datetime
+
+
+def _check_and_increment_otp_limit(record: _OtpRateLimited, error_detail: str) -> None:
     now = datetime.now(timezone.utc)
-    window_start = pending.otp_window_start
+    window_start = record.otp_window_start
     if window_start.tzinfo is None:
         window_start = window_start.replace(tzinfo=timezone.utc)
 
     if now - window_start > timedelta(hours=24):
-        pending.otp_request_count = 1
-        pending.otp_window_start = now
+        record.otp_request_count = 1
+        record.otp_window_start = now
+    elif record.otp_request_count >= MAX_OTP_REQUESTS_PER_DAY:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=error_detail,
+        )
     else:
-        if pending.otp_request_count >= MAX_OTP_REQUESTS_PER_DAY:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Too many verification code requests today. Please try again tomorrow.",
-            )
-        pending.otp_request_count += 1
-def _check_and_increment_reset_limit(reset: PasswordReset, db: Session):
-    now = datetime.now(timezone.utc)
-    window_start = reset.otp_window_start
-    if window_start.tzinfo is None:
-        window_start = window_start.replace(tzinfo=timezone.utc)
+        record.otp_request_count += 1
 
-    if now - window_start > timedelta(hours=24):
-        reset.otp_request_count = 1
-        reset.otp_window_start = now
-    else:
-        if reset.otp_request_count >= MAX_OTP_REQUESTS_PER_DAY:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Too many password reset requests today. Please try again tomorrow.",
-            )
-        reset.otp_request_count += 1
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 @limiter.limit("5/minute")
@@ -71,7 +75,10 @@ def register(request: Request, user: UserCreate, db: Session = Depends(get_db)):
     hashed_password = hash_password(user.password)
 
     if existing_pending:
-        _check_and_increment_otp_limit(existing_pending, db)
+        _check_and_increment_otp_limit(
+            existing_pending,
+            "Too many verification code requests today. Please try again tomorrow.",
+        )
         otp_code = generate_otp()
         existing_pending.password = hashed_password
         existing_pending.otp_code = otp_code
@@ -95,29 +102,9 @@ def register(request: Request, user: UserCreate, db: Session = Depends(get_db)):
 
 @router.post("/resend-otp")
 @limiter.limit("5/minute")
-def resend_otp(request: Request, email: str, db: Session = Depends(get_db)):
-    pending = db.query(PendingUser).filter(PendingUser.email == email).first()
-
-    if not pending:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No pending registration found for this email",
-        )
-
-    _check_and_increment_otp_limit(pending, db)
-
-    otp_code = generate_otp()
-    pending.otp_code = otp_code
-    pending.otp_expires_at = get_otp_expiry()
-    db.commit()
-
-    send_verification_email(to_email=email, otp_code=otp_code)
-
-    return {"message": "Verification code resent to your email"}
-
-
-@router.post("/verify", response_model=UserOut)
-def verify_email(payload: VerifyOTP, db: Session = Depends(get_db)):
+def resend_otp(request: Request, payload: ResendOTP, db: Session = Depends(get_db)):
+    # Issue #12 fix: `payload` is now a JSON body (see schemas/user.py),
+    # so the email address is never appended to the URL / access logs.
     pending = db.query(PendingUser).filter(PendingUser.email == payload.email).first()
 
     if not pending:
@@ -126,7 +113,37 @@ def verify_email(payload: VerifyOTP, db: Session = Depends(get_db)):
             detail="No pending registration found for this email",
         )
 
-    if pending.otp_code != payload.otp_code:
+    _check_and_increment_otp_limit(
+        pending,
+        "Too many verification code requests today. Please try again tomorrow.",
+    )
+
+    otp_code = generate_otp()
+    pending.otp_code = otp_code
+    pending.otp_expires_at = get_otp_expiry()
+    db.commit()
+
+    send_verification_email(to_email=payload.email, otp_code=otp_code)
+
+    return {"message": "Verification code resent to your email"}
+
+
+@router.post("/verify", response_model=UserOut)
+@limiter.limit("10/minute")
+def verify_email(request: Request, payload: VerifyOTP, db: Session = Depends(get_db)):
+    # Issue #7 fix: rate-limit the verify step itself, not just the request
+    # step — otherwise the OTP can be brute-forced with no throttling here.
+    pending = db.query(PendingUser).filter(PendingUser.email == payload.email).first()
+
+    if not pending:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No pending registration found for this email",
+        )
+
+    # Issue #6 fix: constant-time comparison to avoid leaking how many
+    # leading digits of the OTP are correct via response timing.
+    if not hmac.compare_digest(pending.otp_code, payload.otp_code):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid verification code",
@@ -155,6 +172,7 @@ def verify_email(payload: VerifyOTP, db: Session = Depends(get_db)):
 
     return new_user
 
+
 @router.post("/forgot-password")
 @limiter.limit("5/minute")
 def forgot_password(request: Request, payload: ForgotPassword, db: Session = Depends(get_db)):
@@ -166,7 +184,10 @@ def forgot_password(request: Request, payload: ForgotPassword, db: Session = Dep
     otp_code = generate_otp()
 
     if existing_reset:
-        _check_and_increment_reset_limit(existing_reset, db)
+        _check_and_increment_otp_limit(
+            existing_reset,
+            "Too many password reset requests today. Please try again tomorrow.",
+        )
         existing_reset.otp_code = otp_code
         existing_reset.otp_expires_at = get_otp_expiry()
         db.commit()
@@ -185,7 +206,9 @@ def forgot_password(request: Request, payload: ForgotPassword, db: Session = Dep
 
 
 @router.post("/reset-password")
-def reset_password(payload: ResetPassword, db: Session = Depends(get_db)):
+@limiter.limit("10/minute")
+def reset_password(request: Request, payload: ResetPassword, db: Session = Depends(get_db)):
+    # Issue #7 fix: rate-limit the verify step itself.
     reset = db.query(PasswordReset).filter(PasswordReset.email == payload.email).first()
 
     if not reset:
@@ -194,7 +217,8 @@ def reset_password(payload: ResetPassword, db: Session = Depends(get_db)):
             detail="Invalid or expired reset code",
         )
 
-    if reset.otp_code != payload.otp_code:
+    # Issue #6 fix: constant-time comparison.
+    if not hmac.compare_digest(reset.otp_code, payload.otp_code):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid reset code",
@@ -224,16 +248,26 @@ def reset_password(payload: ResetPassword, db: Session = Depends(get_db)):
     return {"message": "Password reset successfully"}
 
 
-@router.post("/login")
+@router.post("/login", response_model=Token)
+@limiter.limit("5/minute")
 def login(
-    user_credentials: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)
+    request: Request,
+    user_credentials: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db),
 ):
+    # Issue #4 fix: rate-limited login (matches the limit already used on
+    # the other auth endpoints) to defend against brute force / credential
+    # stuffing.
     user = db.query(User).filter(User.email == user_credentials.username).first()
 
     if not user or not verify_password(user_credentials.password, user.password):
+        # Issue #4 fix: 401, not 403 — this is an authentication failure,
+        # not an authorization one, and 403 causes some OAuth2 client
+        # libraries to skip retry-with-credentials handling.
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",
+            headers={"WWW-Authenticate": "Bearer"},
         )
 
     access_token = create_access_token(data={"user_id": str(user.id)})

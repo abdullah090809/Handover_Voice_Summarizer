@@ -1,24 +1,43 @@
+import logging
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 from sqlalchemy import text
 from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
 
 from app.cores.database import engine
 from app.cores.limiter import limiter
+from app.services.transcription import get_whisper_model
 from app.routers import auth, care_homes, handover, residents, shifts, user
 
-app = FastAPI()
+# Issue #19 fix: configure logging once, at startup, instead of having no
+# logging configuration anywhere in the project. Ship JSON/structured
+# output to a log aggregator in production by swapping the formatter here.
+logging.basicConfig(
+    level=os.getenv("LOG_LEVEL", "INFO"),
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Issue #24 fix: load the Whisper model at startup (fail fast / warm the
+    # model) instead of lazily on the first transcription request, so the
+    # first real user isn't the one who pays the multi-second load cost —
+    # and a missing/corrupt model file fails the deploy, not a request.
+    logger.info("Warming Whisper model before accepting traffic")
+    get_whisper_model()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# ── API routers — must be registered BEFORE the frontend catch-all below,
-# so exact API paths (e.g. /login, /care-homes) are matched first and never
-# shadowed by the catch-all route that serves the React app. ──
 app.include_router(auth.router)
 app.include_router(care_homes.router)
 app.include_router(residents.router)
@@ -27,9 +46,8 @@ app.include_router(shifts.router)
 app.include_router(user.router)
 
 
-@app.get("/status")
-def status():
-    # Moved from "/" so the frontend can be served at the root path instead.
+@app.get("/")
+def status_check():
     return {"message": "Handover Voice Summarizer Project is running successfully!"}
 
 
@@ -39,27 +57,16 @@ def health_db():
         conn.execute(text("SELECT 1"))
     return {"database": "connected"}
 
-
-# ── Frontend static serving ──
-# frontend/dist is a sibling of app/, i.e. repo_root/frontend/dist
-FRONTEND_DIST = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
-
-app.mount(
-    "/assets",
-    StaticFiles(directory=os.path.join(FRONTEND_DIST, "assets")),
-    name="assets",
-)
-
-
-@app.get("/")
-async def serve_frontend_root():
-    return FileResponse(os.path.join(FRONTEND_DIST, "index.html"))
-
-
-@app.get("/{full_path:path}")
-async def serve_frontend(full_path: str):
-    # Catch-all for React Router's client-side routes (e.g. /dashboard,
-    # /shifts) so refreshing on those pages doesn't 404 — FastAPI hands them
-    # index.html and React Router takes over from there. Only reached if no
-    # API route above already matched.
-    return FileResponse(os.path.join(FRONTEND_DIST, "index.html"))
+# Issue #23 note: no CORS middleware is added here because there is no
+# frontend yet. If a separate frontend origin (e.g. a local Vite dev
+# server) or a non-browser client (mobile app) needs to call this API
+# cross-origin, add:
+#
+#   from fastapi.middleware.cors import CORSMiddleware
+#   app.add_middleware(
+#       CORSMiddleware,
+#       allow_origins=[...],       # explicit allow-list, never "*" with credentials
+#       allow_credentials=True,
+#       allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+#       allow_headers=["Authorization", "Content-Type"],
+#   )

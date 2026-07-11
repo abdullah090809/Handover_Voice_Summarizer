@@ -1,69 +1,25 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy import Column, ForeignKey, Integer, String
+from sqlalchemy.sql.expression import text
+from sqlalchemy.sql.sqltypes import TIMESTAMP
 
-from app.cores.database import get_db
-from app.cores.security import get_current_user, hash_password, verify_password
-from app.models.care_home import CareHome
-from app.models.user import User
-from app.schemas.user import AssignCareHome, ChangePassword, UserOut
-
-router = APIRouter(prefix="/users", tags=["Users"])
+from app.cores.database import Base
 
 
-@router.get("/me", response_model=UserOut)
-def get_current_user_info(
-    current_user: User = Depends(get_current_user),
-):
-    return current_user
+class User(Base):
+    __tablename__ = "users"
 
-
-@router.patch("/me/change-password")
-def change_password(
-    payload: ChangePassword,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    if not verify_password(payload.current_password, current_user.password):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Current password is incorrect",
-        )
-
-    current_user.password = hash_password(payload.new_password)
-    db.commit()
-
-    return {"message": "Password changed successfully"}
-
-
-@router.patch("/{id}/care-home", response_model=UserOut)
-def assign_care_home(
-    id: int,
-    assignment: AssignCareHome,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    if current_user.role != "manager":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only managers can assign care homes to users",
-        )
-
-    user = db.query(User).filter(User.id == id).first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"User with id {id} not found",
-        )
-
-    care_home = db.query(CareHome).filter(CareHome.id == assignment.care_home_id).first()
-    if not care_home:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Care home with id {assignment.care_home_id} not found",
-        )
-
-    user.care_home_id = assignment.care_home_id
-    db.commit()
-    db.refresh(user)
-
-    return user
+    id = Column(Integer, primary_key=True, nullable=False)
+    email = Column(String, nullable=False, unique=True)
+    password = Column(String, nullable=False)
+    role = Column(String, nullable=False, server_default="care_worker")
+    # Issue #10 fix: index the FK — Postgres does not auto-index FK columns,
+    # and this column is filtered on in residents/handover tenant-scoping.
+    care_home_id = Column(
+        Integer,
+        ForeignKey("care_homes.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    created_at = Column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
+    )

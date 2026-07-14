@@ -12,7 +12,6 @@ class PendingUser(Base):
     email = Column(String, nullable=False, unique=True)
     password = Column(String, nullable=False)
     role = Column(String, nullable=False, server_default="care_worker")
-    care_home_id = Column(Integer, ForeignKey("care_homes.id", ondelete="SET NULL"), nullable=True)
     otp_code = Column(String, nullable=False)
     otp_expires_at = Column(TIMESTAMP(timezone=True), nullable=False)
     otp_request_count = Column(Integer, nullable=False, server_default="1")

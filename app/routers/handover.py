@@ -1,45 +1,39 @@
-import logging
+import asyncio
 import os
 import tempfile
+import logging
 from datetime import date
-
-from fastapi import (
-    APIRouter,
-    BackgroundTasks,
-    Depends,
-    File,
-    Form,
-    HTTPException,
-    Query,
-    UploadFile,
-    status,
-)
+from fastapi import APIRouter, Depends, HTTPException, Query, status, UploadFile, File, Form, BackgroundTasks, Request
 from sqlalchemy.orm import Session
 
-from app.cores.database import SessionLocal, get_db
+from app.cores.database import get_db, SessionLocal
+from app.cores.limiter import limiter
 from app.cores.security import get_current_user
 from app.models.handover_note import HandoverNote
 from app.models.resident import Resident
+from app.models.notification import Notification
 from app.models.shift import Shift
 from app.models.user import User
 from app.schemas.handover_note import HandoverNoteAccepted, HandoverNoteOut
-from app.services.email import send_urgent_handover_email
-from app.services.summarizer import summarize_transcript
 from app.services.transcription import transcribe_audio
+from app.services.summarizer import summarize_transcript
+from app.services.email import send_urgent_handover_email
+from app.routers.websocket import manager
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/handover", tags=["Handover"])
+router = APIRouter(prefix="/handover", tags=["Handover Notes"])
 
-# Issue #13 fix: allow-list of accepted upload content types and a hard size cap.
 ALLOWED_AUDIO_CONTENT_TYPES = {
     "audio/wav",
     "audio/x-wav",
     "audio/mpeg",
-    "audio/mp4",
+    "audio/mp3",
+    "audio/m4a",
     "audio/x-m4a",
     "audio/webm",
     "audio/ogg",
+    "application/octet-stream",
 }
 ALLOWED_AUDIO_SUFFIXES = {".wav", ".mp3", ".m4a", ".webm", ".ogg"}
 MAX_AUDIO_BYTES = 25 * 1024 * 1024  # 25 MB
@@ -47,11 +41,6 @@ _UPLOAD_CHUNK_SIZE = 1024 * 1024  # 1 MB
 
 
 def _save_upload_to_tempfile(audio: UploadFile) -> str:
-    """
-    Issue #13 fix: validate content-type against an allow-list and stream the
-    upload to disk in fixed-size chunks, rejecting it as soon as it exceeds
-    MAX_AUDIO_BYTES instead of buffering an unbounded file first.
-    """
     if audio.content_type not in ALLOWED_AUDIO_CONTENT_TYPES:
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
@@ -82,13 +71,7 @@ def _save_upload_to_tempfile(audio: UploadFile) -> str:
         return tmp.name
 
 
-def _process_handover_note(note_id: int, tmp_path: str) -> None:
-    """
-    Issue #14 fix: the slow, CPU/network-bound work (Whisper transcription +
-    Gemini summarization) runs here, off the request/response cycle, using
-    its own DB session since the request-scoped session from `get_db` is
-    already closed by the time a background task runs.
-    """
+def _process_handover_note(note_id: int, tmp_path: str, main_loop: asyncio.AbstractEventLoop) -> None:
     db: Session = SessionLocal()
     try:
         note = db.query(HandoverNote).filter(HandoverNote.id == note_id).first()
@@ -106,6 +89,13 @@ def _process_handover_note(note_id: int, tmp_path: str) -> None:
             note.status = "failed"
             note.error_message = "Audio transcription failed"
             db.commit()
+            try:
+                asyncio.run_coroutine_threadsafe(
+                    manager.broadcast(f'{{"type": "handover_updated", "id": {note_id}, "status": "failed"}}'),
+                    main_loop
+                )
+            except Exception as e:
+                logger.error(f"WebSocket broadcast failed: {e}")
             return
 
         try:
@@ -116,6 +106,13 @@ def _process_handover_note(note_id: int, tmp_path: str) -> None:
             note.raw_transcript = transcript
             note.error_message = "Structured summary generation failed"
             db.commit()
+            try:
+                asyncio.run_coroutine_threadsafe(
+                    manager.broadcast(f'{{"type": "handover_updated", "id": {note_id}, "status": "failed"}}'),
+                    main_loop
+                )
+            except Exception as e:
+                logger.error(f"WebSocket broadcast failed: {e}")
             return
 
         note.raw_transcript = transcript
@@ -125,29 +122,54 @@ def _process_handover_note(note_id: int, tmp_path: str) -> None:
         db.commit()
         db.refresh(note)
 
+        # Notify via WebSocket about handover completion
+        try:
+            asyncio.run_coroutine_threadsafe(
+                manager.broadcast(f'{{"type": "handover_updated", "id": {note_id}, "status": "complete"}}'),
+                main_loop
+            )
+        except Exception as e:
+            logger.error(f"WebSocket broadcast failed: {e}")
+
+        # Check for safety-relevant notifications for high/urgent urgency
         if note.urgency_flag in ("high", "urgent"):
             resident = db.query(Resident).filter(Resident.id == note.resident_id).first()
-            care_home_id = resident.care_home_id if resident else None
-            managers = (
-                db.query(User)
-                .filter(User.care_home_id == care_home_id, User.role == "manager")
-                .all()
-            )
+            resident_name = resident.name if resident else "Unknown Resident"
             summary_text = structured_summary.get("summary", "")
-            for manager in managers:
+
+            # Create internal database Notification for Managers
+            db_notification = Notification(
+                message=f"Urgent handover note #{note.id} recorded for resident {resident_name}.",
+                urgency_flag=note.urgency_flag,
+                resident_id=note.resident_id,
+                handover_note_id=note.id,
+            )
+            db.add(db_notification)
+            db.commit()
+            db.refresh(db_notification)
+
+            try:
+                asyncio.run_coroutine_threadsafe(
+                    manager.broadcast(f'{{"type": "notification", "id": {db_notification.id}, "message": "{db_notification.message}", "urgency_flag": "{db_notification.urgency_flag}", "resident_id": {note.resident_id or "null"}}}'),
+                    main_loop
+                )
+            except Exception as e:
+                logger.error(f"WebSocket notification broadcast failed: {e}")
+
+            # Send Email alerts to all managers
+            managers = db.query(User).filter(User.role == "manager").all()
+            for manager_user in managers:
                 try:
                     send_urgent_handover_email(
-                        to_email=manager.email,
-                        resident_name=resident.name if resident else None,
+                        to_email=manager_user.email,
+                        resident_name=resident_name,
                         summary=summary_text,
                         note_id=note.id,
                     )
                 except Exception:
-                    # Issue #19 fix: log instead of silently discarding the
-                    # failure of a safety-relevant notification.
                     logger.exception(
                         "Failed to send urgent handover email",
-                        extra={"manager_email": manager.email, "note_id": note.id},
+                        extra={"manager_email": manager_user.email, "note_id": note.id},
                     )
     finally:
         db.close()
@@ -160,7 +182,9 @@ def _process_handover_note(note_id: int, tmp_path: str) -> None:
     response_model=HandoverNoteAccepted,
     status_code=status.HTTP_202_ACCEPTED,
 )
+@limiter.limit("20/hour")
 def transcribe_handover_audio(
+    request: Request,
     background_tasks: BackgroundTasks,
     shift_id: int = Form(...),
     resident_id: int = Form(...),
@@ -168,6 +192,13 @@ def transcribe_handover_audio(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # Requirement: Managers should NOT record notes or upload handovers
+    if current_user.role == "manager":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Managers are not allowed to submit shift handovers.",
+        )
+
     shift = db.query(Shift).filter(Shift.id == shift_id).first()
     if not shift:
         raise HTTPException(
@@ -187,19 +218,8 @@ def transcribe_handover_audio(
             detail=f"Resident with id {resident_id} not found",
         )
 
-    # Issue #3 fix: a non-manager may only record a handover note for a
-    # resident in their own care home.
-    if current_user.role != "manager" and resident.care_home_id != current_user.care_home_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to record a handover note for this resident",
-        )
-
     tmp_path = _save_upload_to_tempfile(audio)
 
-    # Issue #14 fix: create the row immediately in "pending" state and hand
-    # the slow work off to a background task instead of blocking this
-    # request on Whisper + Gemini.
     new_note = HandoverNote(
         shift_id=shift_id,
         resident_id=resident_id,
@@ -209,7 +229,8 @@ def transcribe_handover_audio(
     db.commit()
     db.refresh(new_note)
 
-    background_tasks.add_task(_process_handover_note, new_note.id, tmp_path)
+    main_loop = request.app.state.main_loop
+    background_tasks.add_task(_process_handover_note, new_note.id, tmp_path, main_loop)
 
     return new_note
 
@@ -220,18 +241,12 @@ def list_handover_notes(
     urgency_flag: str | None = Query(None),
     date_from: date | None = Query(None),
     date_to: date | None = Query(None),
-    # Issue #11 fix: bounded pagination.
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    # Issue #3 fix: join to Resident so results can be scoped to the
-    # caller's care home instead of returning every note in the system.
-    query = db.query(HandoverNote).join(Resident, HandoverNote.resident_id == Resident.id)
-
-    if current_user.role != "manager":
-        query = query.filter(Resident.care_home_id == current_user.care_home_id)
+    query = db.query(HandoverNote)
     if resident_id is not None:
         query = query.filter(HandoverNote.resident_id == resident_id)
     if urgency_flag is not None:
@@ -261,15 +276,28 @@ def get_handover_note(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Handover note with id {id} not found",
         )
-
-    # Issue #3 fix: deny access to notes belonging to residents outside the
-    # caller's care home.
-    if current_user.role != "manager":
-        resident = db.query(Resident).filter(Resident.id == note.resident_id).first()
-        if resident is None or resident.care_home_id != current_user.care_home_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Not authorized to view this handover note",
-            )
-
     return note
+
+
+@router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_handover_note(
+    id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if current_user.role != "manager":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only managers can delete handover notes",
+        )
+
+    note = db.query(HandoverNote).filter(HandoverNote.id == id).first()
+    if not note:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Handover note with id {id} not found",
+        )
+
+    db.delete(note)
+    db.commit()
+    return None

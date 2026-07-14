@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Handover Voice Summarizer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div id="toast-container"></div>
+    <div class="background-blobs">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+    </div>
+
+    <!-- Auth Container -->
+    <section id="auth-section" class="glass-container active">
+        <div class="header-text">
+            <h1><i class="fa-solid fa-microphone-lines"></i> Handover</h1>
+            <p>Voice Summarizer Platform</p>
+        </div>
+
+        <!-- Login Form -->
+        <form id="login-form" class="auth-form active">
+            <h2>Sign In</h2>
+            <div class="input-group">
+                <i class="fa-regular fa-envelope"></i>
+                <input type="email" id="login-email" placeholder="Email Address" required>
+            </div>
+            <div class="input-group">
+                <i class="fa-solid fa-lock"></i>
+                <input type="password" id="login-password" placeholder="Password" required>
+            </div>
+            <button type="submit" class="btn-primary w-full" id="login-btn">
+                <span>Sign In</span> <i class="fa-solid fa-arrow-right"></i>
+            </button>
+            <p class="error-text" id="login-error"></p>
+            <div class="auth-links">
+                <a href="#" id="link-to-register">Create Account</a>
+                <a href="#" id="link-to-forgot">Forgot Password?</a>
+            </div>
+        </form>
+
+        <!-- Register Form -->
+        <form id="register-form" class="auth-form hidden">
+            <h2>Create Account</h2>
+            <div class="input-group">
+                <i class="fa-regular fa-envelope"></i>
+                <input type="email" id="reg-email" placeholder="Email Address" required>
+            </div>
+            <div class="input-group">
+                <i class="fa-solid fa-lock"></i>
+                <input type="password" id="reg-password" placeholder="Password (Min 8 chars)" minlength="8" required>
+            </div>
+            <button type="submit" class="btn-primary w-full" id="reg-btn">Register</button>
+            <p class="error-text" id="reg-error"></p>
+            <p class="success-text" id="reg-success"></p>
+            <div class="auth-links">
+                <a href="#" id="link-to-login-from-reg">Back to Login</a>
+                <a href="#" id="link-to-verify">Enter OTP</a>
+            </div>
+        </form>
+
+        <!-- Verify OTP Form -->
+        <form id="verify-form" class="auth-form hidden">
+            <h2>Verify Email</h2>
+            <p class="text-muted text-sm text-center mb-4">Enter the 6-digit code sent to your email.</p>
+            <div class="input-group">
+                <i class="fa-regular fa-envelope"></i>
+                <input type="email" id="verify-email" placeholder="Email Address" required>
+            </div>
+            <div class="input-group">
+                <i class="fa-solid fa-hashtag"></i>
+                <input type="text" id="verify-otp" placeholder="6-digit OTP" pattern="\\d{6}" maxlength="6" required>
+            </div>
+            <button type="submit" class="btn-primary w-full" id="verify-btn">Verify Account</button>
+            <button type="button" class="btn-secondary w-full mt-2" id="resend-otp-btn">Resend Code</button>
+            <p class="error-text" id="verify-error"></p>
+            <p class="success-text" id="verify-success"></p>
+            <div class="auth-links mt-4">
+                <a href="#" id="link-to-login-from-verify">Back to Login</a>
+            </div>
+        </form>
+
+        <!-- Forgot Password Form -->
+        <form id="forgot-form" class="auth-form hidden">
+            <h2>Forgot Password</h2>
+            <div class="input-group">
+                <i class="fa-regular fa-envelope"></i>
+                <input type="email" id="forgot-email" placeholder="Email Address" required>
+            </div>
+            <button type="submit" class="btn-primary w-full" id="forgot-btn">Send Reset Code</button>
+            <p class="error-text" id="forgot-error"></p>
+            <p class="success-text" id="forgot-success"></p>
+            <div class="auth-links">
+                <a href="#" id="link-to-reset">Enter Reset Code</a>
+                <a href="#" id="link-to-login-from-forgot">Back to Login</a>
+            </div>
+        </form>
+
+        <!-- Reset Password Form -->
+        <form id="reset-form" class="auth-form hidden">
+            <h2>Reset Password</h2>
+            <div class="input-group">
+                <i class="fa-regular fa-envelope"></i>
+                <input type="email" id="reset-email" placeholder="Email Address" required>
+            </div>
+            <div class="input-group">
+                <i class="fa-solid fa-hashtag"></i>
+                <input type="text" id="reset-otp" placeholder="6-digit Reset OTP" pattern="\\d{6}" maxlength="6"
+                    required>
+            </div>
+            <div class="input-group">
+                <i class="fa-solid fa-lock"></i>
+                <input type="password" id="reset-password" placeholder="New Password (Min 8 chars)" minlength="8"
+                    required>
+            </div>
+            <button type="submit" class="btn-primary w-full" id="reset-btn">Update Password</button>
+            <p class="error-text" id="reset-error"></p>
+            <p class="success-text" id="reset-success"></p>
+            <div class="auth-links mt-4">
+                <a href="#" id="link-to-login-from-reset">Back to Login</a>
+            </div>
+        </form>
+
+    </section>
+
+    <!-- Dashboard Layout -->
+    <section id="dashboard-section" class="dashboard-layout hidden">
+
+        <!-- Sidebar Navigation -->
+        <nav class="sidebar glass-container">
+            <div class="brand">
+                <i class="fa-solid fa-microphone-lines"></i>
+                <h2>Handover</h2>
+            </div>
+            <ul class="nav-links">
+                <li class="active" data-target="handovers-view" id="nav-handovers-tab"><i
+                        class="fa-solid fa-file-waveform"></i> Handovers</li>
+                <li data-target="residents-view"><i class="fa-solid fa-users"></i> Residents</li>
+                <li data-target="shifts-view" id="nav-shifts-tab"><i class="fa-solid fa-clock"></i> Shifts</li>
+                <li data-target="users-view" id="nav-users-tab"><i class="fa-solid fa-user-group"></i> Team</li>
+                <li data-target="notifications-view" id="nav-notifications-tab"
+                    style="display:none; position:relative;">
+                    <i class="fa-solid fa-bell"></i> Notifications
+                    <span id="notifications-badge" class="badge urgent"
+                        style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); display: none;">0</span>
+                </li>
+                <li data-target="profile-view"><i class="fa-solid fa-user"></i> My Profile</li>
+            </ul>
+            <div class="sidebar-footer">
+                <button id="logout-btn" class="btn-secondary"><i class="fa-solid fa-arrow-right-from-bracket"></i>
+                    Logout</button>
+            </div>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+
+            <!-- Topbar -->
+            <header class="topbar glass-container">
+                <h2 id="current-view-title">Handovers</h2>
+                <div id="topbar-actions">
+                    <!-- Dynamic buttons injected here -->
+                </div>
+            </header>
+
+            <!-- Handovers View -->
+            <div id="handovers-view" class="view active">
+                <div class="filters">
+                    <select id="filter-urgency" class="glass-input">
+                        <option value="">All Urgencies</option>
+                        <option value="low">Low</option>
+                        <option value="medium">Medium</option>
+                        <option value="high">High</option>
+                    </select>
+                </div>
+                <div class="grid-container" id="handovers-grid"></div>
+                <div class="loader hidden" id="handovers-loader"></div>
+            </div>
+
+            <!-- Residents View -->
+            <div id="residents-view" class="view hidden">
+                <div class="grid-container" id="residents-grid"></div>
+                <div class="loader hidden" id="residents-loader"></div>
+            </div>
+
+            <!-- Shifts View -->
+            <div id="shifts-view" class="view hidden">
+                <div class="grid-container" id="shifts-grid"></div>
+                <div class="loader hidden" id="shifts-loader"></div>
+            </div>
+
+            <!-- Users/Team View -->
+            <div id="users-view" class="view hidden">
+                <div class="grid-container" id="users-grid"></div>
+                <div class="loader hidden" id="users-loader"></div>
+            </div>
+
+            <!-- Notifications View -->
+            <div id="notifications-view" class="view hidden">
+                <div style="margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center;">
+                    <h3 style="color: white;">Alerts & Urgent Handovers</h3>
+                    <button class="btn-secondary" id="mark-all-notifications-read-btn"><i
+                            class="fa-solid fa-check-double"></i> Mark All as Read</button>
+                </div>
+                <div class="grid-container" id="notifications-grid"></div>
+                <div class="loader hidden" id="notifications-loader"></div>
+            </div>
+
+            <!-- Profile View -->
+            <div id="profile-view" class="view hidden">
+
+                <!-- Hero / Avatar Banner -->
+                <div class="profile-hero glass-container">
+                    <div class="profile-avatar" id="profile-avatar-initials">?</div>
+                    <div class="profile-hero-info">
+                        <h2 id="profile-hero-email">Loading...</h2>
+                        <p>Member since <span id="profile-joined">—</span></p>
+                        <span class="badge low" id="profile-hero-badge">Staff</span>
+                    </div>
+                </div>
+
+                <!-- Two-Column Body -->
+                <div class="profile-body">
+
+                    <!-- Left: Account Info -->
+                    <div class="profile-left">
+                        <div class="profile-section-card glass-container">
+                            <div class="profile-section-header">
+                                <i class="fa-solid fa-id-card"></i>
+                                <h4>Account Information</h4>
+                            </div>
+                            <div class="profile-info-list">
+                                <div class="profile-info-row">
+                                    <span class="info-label"><i class="fa-solid fa-at"></i> Email</span>
+                                    <span class="info-value" id="profile-email"></span>
+                                </div>
+                                <div class="profile-info-row">
+                                    <span class="info-label"><i class="fa-solid fa-fingerprint"></i> User ID</span>
+                                    <span class="info-value" id="profile-id"></span>
+                                </div>
+                                <div class="profile-info-row">
+                                    <span class="info-label"><i class="fa-solid fa-shield-halved"></i> Role</span>
+                                    <span class="info-value" id="profile-role">—</span>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right: Settings -->
+                    <div class="profile-right">
+
+                        <!-- Change Password (Collapsible) -->
+                        <div class="profile-section-card glass-container">
+                            <button type="button" class="profile-section-header collapsible-header"
+                                id="toggle-change-password">
+                                <div class="collapsible-title">
+                                    <i class="fa-solid fa-lock"></i>
+                                    <h4>Change Password</h4>
+                                </div>
+                                <i class="fa-solid fa-chevron-down toggle-icon" id="cp-chevron"></i>
+                            </button>
+                            <div id="change-password-body" class="collapsible-body hidden">
+                                <form id="change-password-form" class="profile-form">
+                                    <div class="input-group">
+                                        <label>Current Password</label>
+                                        <input type="password" id="cp-current" placeholder="Your current password"
+                                            required>
+                                    </div>
+                                    <div class="input-group">
+                                        <label>New Password</label>
+                                        <input type="password" id="cp-new" minlength="8" placeholder="Min. 8 characters"
+                                            required>
+                                    </div>
+                                    <div class="input-group">
+                                        <label>Confirm New Password</label>
+                                        <input type="password" id="cp-confirm" placeholder="Repeat new password"
+                                            required>
+                                    </div>
+                                    <div class="profile-form-actions">
+                                        <button type="submit" class="btn-primary" id="cp-btn">
+                                            <i class="fa-solid fa-key"></i> Update Password
+                                        </button>
+                                    </div>
+                                    <p class="error-text" id="cp-error"></p>
+                                    <p class="success-text" id="cp-success"></p>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </section>
+
+    <!-- Generic Modal for Forms (CRUD) -->
+    <div id="crud-modal" class="modal-overlay hidden">
+        <div class="modal-content glass-container">
+            <div class="modal-header">
+                <h3 id="crud-modal-title">Form</h3>
+                <button id="close-crud" class="icon-btn"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="crud-form">
+                <div id="crud-form-body"></div>
+                <div class="modal-actions mt-4">
+                    <button type="submit" class="btn-primary w-full" id="crud-submit-btn">Save</button>
+                </div>
+                <p class="error-text" id="crud-error"></p>
+            </form>
+        </div>
+    </div>
+
+    <!-- Handover Recording/Upload Modal -->
+    <div id="handover-modal" class="modal-overlay hidden">
+        <div class="modal-content glass-container">
+            <div class="modal-header">
+                <h3>Record/Upload Handover</h3>
+                <button id="close-handover" class="icon-btn"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="handover-form">
+                <div class="form-row">
+                    <div class="input-group">
+                        <label>Select Resident</label>
+                        <select id="handover-resident" required class="glass-input">
+                            <option value="">-- Choose --</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>Select Shift</label>
+                        <select id="handover-shift" required class="glass-input">
+                            <option value="">-- Choose --</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="handover-tabs">
+                    <button type="button" class="tab-btn active" data-tab="upload-tab">Upload File</button>
+                    <button type="button" class="tab-btn" data-tab="record-tab">Record Voice</button>
+                </div>
+
+                <div id="upload-tab" class="handover-tab-content active">
+                    <div class="upload-area" id="drop-zone">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                        <p>Drag & drop audio file or click</p>
+                        <span class="supported-formats">Max 25MB</span>
+                        <input type="file" id="audio-file" accept="audio/*" class="hidden-input">
+                    </div>
+                    <p id="selected-filename" class="selected-filename"></p>
+                </div>
+
+                <div id="record-tab" class="handover-tab-content hidden">
+                    <div class="record-area">
+                        <button type="button" id="record-btn" class="record-btn-circle">
+                            <i class="fa-solid fa-microphone"></i>
+                        </button>
+                        <p id="record-timer" class="record-timer">00:00</p>
+                        <p id="record-status" class="record-status">Click to Start</p>
+                        <audio id="record-preview" controls class="hidden w-full mt-4"></audio>
+                        <button type="button" id="clear-record-btn" class="btn-secondary w-full hidden mt-2">Discard
+                            Recording</button>
+                    </div>
+                </div>
+
+                <div class="modal-actions mt-4">
+                    <button type="submit" class="btn-primary w-full" id="submit-handover">
+                        <i class="fa-solid fa-upload"></i> Submit Handover
+                    </button>
+                </div>
+                <p class="error-text" id="handover-error"></p>
+            </form>
+        </div>
+    </div>
+
+    <!-- Handover Details Modal -->
+    <div id="details-modal" class="modal-overlay hidden">
+        <div class="modal-content glass-container large-modal">
+            <div class="modal-header">
+                <h3>Handover Details</h3>
+                <button id="close-details" class="icon-btn"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="details-body" id="details-body"></div>
+        </div>
+    </div>
+
+    <!-- Resident Detail Modal -->
+    <div id="resident-detail-modal" class="modal-overlay hidden">
+        <div class="modal-content glass-container large-modal">
+            <div class="modal-header">
+                <h3>Resident Details</h3>
+                <button id="close-resident-detail" class="icon-btn"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div id="resident-detail-body">
+                <div id="resident-info-section" class="details-section"></div>
+                <div class="details-section">
+                    <h4>Handover History</h4>
+                    <div id="resident-handovers-list"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>

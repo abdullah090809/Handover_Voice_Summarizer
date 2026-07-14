@@ -1,16 +1,23 @@
 import logging
 import os
+import asyncio
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+# pyrefly: ignore [missing-import]
+from fastapi import FastAPI, Request
+# pyrefly: ignore [missing-import]
+from fastapi.responses import JSONResponse
+# pyrefly: ignore [missing-import]
 from sqlalchemy import text
+# pyrefly: ignore [missing-import]
 from slowapi.errors import RateLimitExceeded
+# pyrefly: ignore [missing-import]
 from slowapi import _rate_limit_exceeded_handler
 
 from app.cores.database import engine
 from app.cores.limiter import limiter
 from app.services.transcription import get_whisper_model
-from app.routers import auth, care_homes, handover, residents, shifts, user
+from app.routers import auth, handover, residents, shifts, user, websocket, notifications
 
 # Issue #19 fix: configure logging once, at startup, instead of having no
 # logging configuration anywhere in the project. Ship JSON/structured
@@ -30,6 +37,7 @@ async def lifespan(app: FastAPI):
     # and a missing/corrupt model file fails the deploy, not a request.
     logger.info("Warming Whisper model before accepting traffic")
     get_whisper_model()
+    app.state.main_loop = asyncio.get_running_loop()
     yield
 
 
@@ -38,12 +46,39 @@ app = FastAPI(lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled Exception: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"success": False, "error": "Internal Server Error"}
+    )
+
+# pyrefly: ignore [missing-import]
+from fastapi.exceptions import RequestValidationError
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    return JSONResponse(
+        status_code=422,
+        content={"success": False, "error": "Validation Error", "details": exc.errors()}
+    )
+
+# pyrefly: ignore [missing-import]
+from fastapi import HTTPException
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"success": False, "error": exc.detail, "detail": exc.detail}
+    )
+
 app.include_router(auth.router)
-app.include_router(care_homes.router)
 app.include_router(residents.router)
 app.include_router(handover.router)
 app.include_router(shifts.router)
 app.include_router(user.router)
+app.include_router(websocket.router)
+app.include_router(notifications.router)
 
 
 @app.get("/")
@@ -57,16 +92,13 @@ def health_db():
         conn.execute(text("SELECT 1"))
     return {"database": "connected"}
 
-# Issue #23 note: no CORS middleware is added here because there is no
-# frontend yet. If a separate frontend origin (e.g. a local Vite dev
-# server) or a non-browser client (mobile app) needs to call this API
-# cross-origin, add:
-#
-#   from fastapi.middleware.cors import CORSMiddleware
-#   app.add_middleware(
-#       CORSMiddleware,
-#       allow_origins=[...],       # explicit allow-list, never "*" with credentials
-#       allow_credentials=True,
-#       allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-#       allow_headers=["Authorization", "Content-Type"],
-#   )
+# pyrefly: ignore [missing-import]
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)

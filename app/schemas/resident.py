@@ -1,15 +1,21 @@
+from datetime import datetime
 from pydantic import BaseModel
+from typing import Literal
 
 
 class ResidentCreate(BaseModel):
     name: str
-    care_home_id: int
 
 
 class ResidentOut(BaseModel):
     id: int
     name: str
-    care_home_id: int
+    status: str
+    discharged_at: datetime | None = None
 
     class Config:
         from_attributes = True
+
+
+class ResidentStatusUpdate(BaseModel):
+    status: Literal["active", "discharged", "deceased"]

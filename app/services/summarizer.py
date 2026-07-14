@@ -1,13 +1,14 @@
 import json
 import logging
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 from app.cores.config import settings
 
 logger = logging.getLogger(__name__)
 
-genai.configure(api_key=settings.gemini_api_key)
+client = genai.Client(api_key=settings.gemini_api_key)
 
 _SYSTEM_PROMPT = """You are a care home shift-handover assistant. You will be given a raw \
 transcript of a care worker's spoken handover note about a resident. Convert it into a \
@@ -35,14 +36,13 @@ or urgent medical issue mentioned. "medium" for notable but non-urgent issues. "
 a routine, uneventful handover.
 """
 
-_model = genai.GenerativeModel(
-    model_name="gemini-2.5-flash",
-    system_instruction=_SYSTEM_PROMPT,
-)
-
 
 def summarize_transcript(transcript: str) -> dict:
-    response = _model.generate_content(transcript)
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=transcript,
+        config=types.GenerateContentConfig(system_instruction=_SYSTEM_PROMPT),
+    )
     raw_text = response.text.strip()
 
     # Gemini sometimes wraps JSON in markdown code fences despite instructions — strip them

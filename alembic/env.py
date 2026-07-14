@@ -2,7 +2,7 @@ from logging.config import fileConfig
 from app.cores.config import settings
 from app.cores.database import Base
 from app.models.user import User
-from app.models.care_home import CareHome
+from app.models.notification import Notification
 from app.models.resident import Resident
 from app.models.shift import Shift
 from sqlalchemy import engine_from_config

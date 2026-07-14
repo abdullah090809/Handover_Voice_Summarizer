@@ -1,11 +1,11 @@
 import hmac
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Protocol
-
+logger = logging.getLogger(__name__)
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-
 from app.cores.database import get_db
 from app.cores.limiter import limiter
 from app.cores.security import (
@@ -33,11 +33,6 @@ router = APIRouter(tags=["Auth"])
 
 MAX_OTP_REQUESTS_PER_DAY = 5
 
-
-# Issue #16 fix: a single generic rate-limit helper (via a structural
-# Protocol) replaces the two near-identical
-# `_check_and_increment_otp_limit` / `_check_and_increment_reset_limit`
-# functions that used to exist here, one per model.
 class _OtpRateLimited(Protocol):
     otp_request_count: int
     otp_window_start: datetime
@@ -95,7 +90,10 @@ def register(request: Request, user: UserCreate, db: Session = Depends(get_db)):
         db.add(new_pending)
         db.commit()
 
-    send_verification_email(to_email=user.email, otp_code=otp_code)
+    try:
+        send_verification_email(to_email=user.email, otp_code=otp_code)
+    except Exception as e:
+        logger.error(f"Failed to send verification email: {e}")
 
     return {"message": "Verification code sent to your email"}
 
@@ -103,8 +101,6 @@ def register(request: Request, user: UserCreate, db: Session = Depends(get_db)):
 @router.post("/resend-otp")
 @limiter.limit("5/minute")
 def resend_otp(request: Request, payload: ResendOTP, db: Session = Depends(get_db)):
-    # Issue #12 fix: `payload` is now a JSON body (see schemas/user.py),
-    # so the email address is never appended to the URL / access logs.
     pending = db.query(PendingUser).filter(PendingUser.email == payload.email).first()
 
     if not pending:
@@ -123,7 +119,10 @@ def resend_otp(request: Request, payload: ResendOTP, db: Session = Depends(get_d
     pending.otp_expires_at = get_otp_expiry()
     db.commit()
 
-    send_verification_email(to_email=payload.email, otp_code=otp_code)
+    try:
+        send_verification_email(to_email=payload.email, otp_code=otp_code)
+    except Exception as e:
+        logger.error(f"Failed to send verification email: {e}")
 
     return {"message": "Verification code resent to your email"}
 
@@ -131,8 +130,6 @@ def resend_otp(request: Request, payload: ResendOTP, db: Session = Depends(get_d
 @router.post("/verify", response_model=UserOut)
 @limiter.limit("10/minute")
 def verify_email(request: Request, payload: VerifyOTP, db: Session = Depends(get_db)):
-    # Issue #7 fix: rate-limit the verify step itself, not just the request
-    # step — otherwise the OTP can be brute-forced with no throttling here.
     pending = db.query(PendingUser).filter(PendingUser.email == payload.email).first()
 
     if not pending:
@@ -140,9 +137,6 @@ def verify_email(request: Request, payload: VerifyOTP, db: Session = Depends(get
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No pending registration found for this email",
         )
-
-    # Issue #6 fix: constant-time comparison to avoid leaking how many
-    # leading digits of the OTP are correct via response timing.
     if not hmac.compare_digest(pending.otp_code, payload.otp_code):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -163,7 +157,6 @@ def verify_email(request: Request, payload: VerifyOTP, db: Session = Depends(get
         email=pending.email,
         password=pending.password,
         role=pending.role,
-        care_home_id=pending.care_home_id,
     )
     db.add(new_user)
     db.delete(pending)
@@ -200,7 +193,10 @@ def forgot_password(request: Request, payload: ForgotPassword, db: Session = Dep
         db.add(new_reset)
         db.commit()
 
-    send_password_reset_email(to_email=payload.email, otp_code=otp_code)
+    try:
+        send_password_reset_email(to_email=payload.email, otp_code=otp_code)
+    except Exception as e:
+        logger.error(f"Failed to send password reset email: {e}")
 
     return {"message": "If that email is registered, a reset code has been sent"}
 
@@ -208,7 +204,6 @@ def forgot_password(request: Request, payload: ForgotPassword, db: Session = Dep
 @router.post("/reset-password")
 @limiter.limit("10/minute")
 def reset_password(request: Request, payload: ResetPassword, db: Session = Depends(get_db)):
-    # Issue #7 fix: rate-limit the verify step itself.
     reset = db.query(PasswordReset).filter(PasswordReset.email == payload.email).first()
 
     if not reset:
@@ -216,8 +211,6 @@ def reset_password(request: Request, payload: ResetPassword, db: Session = Depen
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid or expired reset code",
         )
-
-    # Issue #6 fix: constant-time comparison.
     if not hmac.compare_digest(reset.otp_code, payload.otp_code):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -255,21 +248,19 @@ def login(
     user_credentials: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db),
 ):
-    # Issue #4 fix: rate-limited login (matches the limit already used on
-    # the other auth endpoints) to defend against brute force / credential
-    # stuffing.
     user = db.query(User).filter(User.email == user_credentials.username).first()
 
     if not user or not verify_password(user_credentials.password, user.password):
-        # Issue #4 fix: 401, not 403 — this is an authentication failure,
-        # not an authorization one, and 403 causes some OAuth2 client
-        # libraries to skip retry-with-credentials handling.
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
-
+    if user.role == "deactivated":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This account has been deactivated. Contact your manager.",
+        )
     access_token = create_access_token(data={"user_id": str(user.id)})
 
     return {"access_token": access_token, "token_type": "bearer"}

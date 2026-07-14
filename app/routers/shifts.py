@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
-
 from app.cores.database import get_db
 from app.cores.security import get_current_user
 from app.models.shift import Shift
@@ -25,15 +24,31 @@ def create_shift(
 
 @router.get("/", response_model=list[ShiftOut])
 def list_my_shifts(
-    # Issue #11 fix: bounded pagination instead of an unbounded .all().
+    worker_id: int | None = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    if worker_id is not None:
+        if current_user.role != "manager":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only managers can view other workers' shifts",
+            )
+        target_worker = db.query(User).filter(User.id == worker_id).first()
+        if not target_worker:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Worker with id {worker_id} not found",
+            )
+        query_id = worker_id
+    else:
+        query_id = current_user.id
+
     return (
         db.query(Shift)
-        .filter(Shift.worker_id == current_user.id)
+        .filter(Shift.worker_id == query_id)
         .offset(skip)
         .limit(limit)
         .all()

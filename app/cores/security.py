@@ -7,7 +7,6 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 from starlette.exceptions import HTTPException
-
 from app.cores.config import settings
 from app.cores.database import get_db
 from app.models.user import User
@@ -30,7 +29,6 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def create_access_token(data: dict) -> str:
     to_encode = data.copy()
-    # Issue #18: use timezone-aware UTC time instead of deprecated datetime.utcnow()
     expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
@@ -64,11 +62,6 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
 
 
 def require_manager(current_user: User = Depends(get_current_user)) -> User:
-    """
-    Issue #1 fix: shared dependency for endpoints that must be restricted to
-    managers, so the role check is declared in the route signature instead
-    of relying on an ad-hoc `if` inside the function body.
-    """
     if current_user.role != "manager":
         raise HTTPException(
             status_code=403,
@@ -78,8 +71,6 @@ def require_manager(current_user: User = Depends(get_current_user)) -> User:
 
 
 def generate_otp() -> str:
-    # Issue #5 fix: use the `secrets` CSPRNG instead of `random`, which is
-    # not suitable for generating security-sensitive tokens like OTP codes.
     return f"{secrets.randbelow(1_000_000):06d}"
 
 

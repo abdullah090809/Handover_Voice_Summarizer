@@ -1,9 +1,5 @@
 from datetime import datetime
-
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
-
-# Issue #8 fix: bcrypt truncates/errors past 72 bytes, and an unconstrained
-# `str` allowed empty/1-character passwords through validation.
 _PASSWORD_FIELD = Field(min_length=8, max_length=72)
 
 
@@ -16,8 +12,21 @@ class UserOut(BaseModel):
     email: str
     id: int
     created_at: datetime
+    role: str
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class UserCreateByManager(BaseModel):
+    email: EmailStr
+    password: str = _PASSWORD_FIELD
+    role: str = Field(default="care_worker", pattern="^(care_worker|manager)$")
+
+
+class UserUpdateByManager(BaseModel):
+    email: EmailStr | None = None
+    role: str | None = Field(default=None, pattern="^(care_worker|manager)$")
+    password: str | None = None
 
 
 class UserLogin(BaseModel):
@@ -28,10 +37,6 @@ class UserLogin(BaseModel):
 class VerifyOTP(BaseModel):
     email: EmailStr
     otp_code: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")
-
-
-class AssignCareHome(BaseModel):
-    care_home_id: int
 
 
 class ForgotPassword(BaseModel):
@@ -50,10 +55,4 @@ class ChangePassword(BaseModel):
 
 
 class ResendOTP(BaseModel):
-    """
-    Issue #12 fix: a proper request-body model instead of a bare `email: str`
-    function parameter, which FastAPI was treating as a query parameter on
-    POST /resend-otp — leaking the address into URLs/access logs.
-    """
-
     email: EmailStr

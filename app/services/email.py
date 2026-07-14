@@ -1,3 +1,4 @@
+import html
 import logging
 
 import resend
@@ -26,15 +27,17 @@ def send_verification_email(to_email: str, otp_code: str):
 
 
 def send_urgent_handover_email(to_email: str, resident_name: str | None, summary: str, note_id: int):
+    escaped_resident_name = html.escape(resident_name) if resident_name else 'Not specified'
+    escaped_summary = html.escape(summary)
     resend.Emails.send(
         {
             "from": "onboarding@resend.dev",
             "to": to_email,
-            "subject": f"High Urgency Handover Alert{f' — {resident_name}' if resident_name else ''}",
+            "subject": f"High Urgency Handover Alert{f' — {escaped_resident_name}' if resident_name else ''}",
             "html": f"""
                 <h2>High Urgency Handover Note</h2>
-                <p><strong>Resident:</strong> {resident_name or 'Not specified'}</p>
-                <p><strong>Summary:</strong> {summary}</p>
+                <p><strong>Resident:</strong> {escaped_resident_name}</p>
+                <p><strong>Summary:</strong> {escaped_summary}</p>
                 <p><a href="#">View full note (ID: {note_id})</a></p>
             """,
         }

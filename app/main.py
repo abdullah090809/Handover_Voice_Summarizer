@@ -2,26 +2,16 @@ import logging
 import os
 import asyncio
 from contextlib import asynccontextmanager
-
-# pyrefly: ignore [missing-import]
 from fastapi import FastAPI, Request
-# pyrefly: ignore [missing-import]
 from fastapi.responses import JSONResponse
-# pyrefly: ignore [missing-import]
 from sqlalchemy import text
-# pyrefly: ignore [missing-import]
 from slowapi.errors import RateLimitExceeded
-# pyrefly: ignore [missing-import]
 from slowapi import _rate_limit_exceeded_handler
-
 from app.cores.database import engine
 from app.cores.limiter import limiter
 from app.services.transcription import get_whisper_model
 from app.routers import auth, handover, residents, shifts, user, websocket, notifications
 
-# Issue #19 fix: configure logging once, at startup, instead of having no
-# logging configuration anywhere in the project. Ship JSON/structured
-# output to a log aggregator in production by swapping the formatter here.
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO"),
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
@@ -31,10 +21,6 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Issue #24 fix: load the Whisper model at startup (fail fast / warm the
-    # model) instead of lazily on the first transcription request, so the
-    # first real user isn't the one who pays the multi-second load cost —
-    # and a missing/corrupt model file fails the deploy, not a request.
     logger.info("Warming Whisper model before accepting traffic")
     get_whisper_model()
     app.state.main_loop = asyncio.get_running_loop()
@@ -54,7 +40,6 @@ async def global_exception_handler(request: Request, exc: Exception):
         content={"success": False, "error": "Internal Server Error"}
     )
 
-# pyrefly: ignore [missing-import]
 from fastapi.exceptions import RequestValidationError
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
@@ -63,7 +48,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         content={"success": False, "error": "Validation Error", "details": exc.errors()}
     )
 
-# pyrefly: ignore [missing-import]
+
 from fastapi import HTTPException
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):

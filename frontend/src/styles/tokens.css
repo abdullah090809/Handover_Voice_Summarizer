@@ -1,0 +1,147 @@
+/* ==========================================================================
+   DESIGN TOKENS
+   A calm, clinical-trust palette: deep ink navy, warm paper, one confident
+   teal accent. Urgency (low/medium/high) is a first-class semantic channel,
+   not a decorative afterthought — it drives color AND shape across the app.
+   ========================================================================== */
+
+:root {
+  /* ---- Base neutrals -------------------------------------------------- */
+  --ink-950: #0b111b;
+  --ink-900: #0f1722;
+  --ink-800: #16212f;
+  --ink-700: #1f2d3d;
+  --ink-600: #2c3d51;
+  --ink-500: #445a72;
+  --ink-400: #64798f;
+  --ink-300: #8ea0b3;
+  --ink-200: #c1cdd9;
+  --ink-100: #dfe6ed;
+
+  --paper-100: #faf9f6;
+  --paper-200: #f4f2ec;
+  --paper-300: #ece8e0;
+  --paper-400: #ddd7c9;
+
+  --white: #ffffff;
+
+  /* ---- Brand / accent --------------------------------------------------
+     A single confident clinical teal. Used sparingly: primary actions,
+     active nav state, links, focus rings. */
+  --teal-800: #0a4d47;
+  --teal-700: #0e625a;
+  --teal-600: #12776d;
+  --teal-500: #178a7e;
+  --teal-400: #2ba296;
+  --teal-100: #e1f2ef;
+  --teal-50: #f0f9f7;
+
+  /* ---- Semantic / urgency ------------------------------------------------
+     Deliberately muted, not neon — these need to sit calmly on a page full
+     of other information, not shout for attention constantly. */
+  --urgency-low: #2f7d5b;
+  --urgency-low-bg: #eaf5ee;
+  --urgency-low-border: #bfe0cd;
+
+  --urgency-medium: #a6690f;
+  --urgency-medium-bg: #fbf1de;
+  --urgency-medium-border: #edd4a3;
+
+  --urgency-high: #b5342b;
+  --urgency-high-bg: #fbeae8;
+  --urgency-high-border: #f0c1bb;
+
+  --info: #2b5f8a;
+  --info-bg: #e9f1f8;
+  --info-border: #bcd6e9;
+
+  /* ---- Surfaces --------------------------------------------------------- */
+  --surface-app: var(--paper-200);
+  --surface-card: var(--white);
+  --surface-sunken: var(--paper-100);
+  --surface-dark: var(--ink-900);
+  --surface-dark-elevated: var(--ink-800);
+
+  --border-subtle: var(--paper-400);
+  --border-default: #e0dbcd;
+  --border-strong: var(--ink-200);
+  --border-dark: var(--ink-700);
+
+  --text-primary: var(--ink-900);
+  --text-secondary: var(--ink-500);
+  --text-tertiary: var(--ink-400);
+  --text-on-dark: var(--paper-100);
+  --text-on-dark-muted: var(--ink-300);
+  --text-link: var(--teal-700);
+
+  /* ---- Typography --------------------------------------------------------
+     UI face: IBM Plex Sans — precise, technical, healthcare/instrument feel.
+     Reading face: Source Serif 4 — used specifically for the body of
+     handover transcripts & summaries, where comfortable long-form reading
+     matters more than anything else in the product.
+     Data face: IBM Plex Mono — timestamps, IDs, exports. */
+  --font-ui: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-reading: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+  --font-mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.9375rem;
+  --text-md: 1.0625rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 1.875rem;
+  --text-3xl: 2.25rem;
+
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.75;
+  --leading-reading: 1.8;
+
+  /* ---- Spacing (8px grid) ------------------------------------------------ */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  /* ---- Radius ------------------------------------------------------------ */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-full: 999px;
+
+  /* ---- Shadow (soft, low elevation — no glow/blur glassmorphism) --------- */
+  --shadow-xs: 0 1px 2px rgba(15, 23, 34, 0.06);
+  --shadow-sm: 0 1px 3px rgba(15, 23, 34, 0.08), 0 1px 2px rgba(15, 23, 34, 0.04);
+  --shadow-md: 0 4px 12px rgba(15, 23, 34, 0.08), 0 2px 4px rgba(15, 23, 34, 0.04);
+  --shadow-lg: 0 12px 32px rgba(15, 23, 34, 0.14), 0 4px 8px rgba(15, 23, 34, 0.06);
+  --shadow-focus: 0 0 0 3px var(--teal-100);
+
+  /* ---- Motion -------------------------------------------------------------
+     Fast, quiet, functional — never decorative. */
+  --ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --duration-slow: 260ms;
+
+  /* ---- Layout -------------------------------------------------------------- */
+  --sidebar-width: 248px;
+  --sidebar-width-collapsed: 76px;
+  --topbar-height: 64px;
+  --content-max-width: 1180px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

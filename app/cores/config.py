@@ -16,7 +16,8 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int
     gemini_api_key: str
     resend_api_key: str
-
+    turnstile_secret_key: str
+    
     class Config:
         env_file = _ENV_FILE
         env_file_encoding = "utf-8"

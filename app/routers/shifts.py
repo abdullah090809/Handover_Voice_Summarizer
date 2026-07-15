@@ -102,6 +102,8 @@ def update_shift(
     return shift_query.first()
 
 
+from sqlalchemy.exc import IntegrityError
+
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_shift(
     id: int,
@@ -122,7 +124,14 @@ def delete_shift(
             detail="Not authorized to delete this shift",
         )
 
-    shift_query.delete(synchronize_session=False)
-    db.commit()
+    try:
+        shift_query.delete(synchronize_session=False)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This shift can't be deleted because it has handover notes attached to it.",
+        )
 
     return None

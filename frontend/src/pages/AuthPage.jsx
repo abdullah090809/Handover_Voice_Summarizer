@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Mail, Lock, Hash, ArrowRight, Stethoscope, AlertCircle, CheckCircle2, ArrowLeft } from 'lucide-react';
+import { Mail, Lock, Hash, ArrowRight, Stethoscope, AlertCircle, CheckCircle2, ArrowLeft, UserRound } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext.jsx';
 import { authApi, ApiError } from '../lib/api.js';
 import { useToast } from '../lib/ToastContext.jsx';
@@ -154,6 +154,8 @@ function LoginForm({ goTo }) {
 
 // ---------------------------------------------------------------------------
 function RegisterForm({ goTo }) {
+  const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -162,9 +164,13 @@ function RegisterForm({ goTo }) {
   async function onSubmit(e) {
     e.preventDefault();
     setError('');
+    if (!/^[a-zA-Z0-9_.]{3,30}$/.test(username)) {
+      setError('Username must be 3-30 characters, letters, numbers, "." or "_" only.');
+      return;
+    }
     setLoading(true);
     try {
-      await authApi.register(email, password);
+      await authApi.register(email, username, password, name.trim());
       goTo('verify', { email, banner: { type: 'success', message: 'Registration received. Enter the code we emailed you to verify your account.' } });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Something went wrong.');
@@ -180,6 +186,20 @@ function RegisterForm({ goTo }) {
         <p>You'll verify your email with a 6-digit code next.</p>
       </div>
       <form className="auth-form" onSubmit={onSubmit}>
+        <Field label="Full name" htmlFor="reg-name" optional hint="Shown to your team on handovers and shifts">
+          <IconInput icon={UserRound} id="reg-name" type="text" value={name} onChange={(e) => setName(e.target.value)} />
+        </Field>
+        <Field label="Username" htmlFor="reg-username" hint="3-30 characters: letters, numbers, . or _">
+          <IconInput
+            icon={Hash}
+            id="reg-username"
+            type="text"
+            required
+            autoComplete="username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value.trim())}
+          />
+        </Field>
         <Field label="Email address" htmlFor="reg-email">
           <IconInput icon={Mail} id="reg-email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
         </Field>

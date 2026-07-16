@@ -2,7 +2,14 @@ import React from 'react';
 import { Inbox, AlertCircle } from 'lucide-react';
 import { initials } from '../lib/format.js';
 
-export function Avatar({ text, size = 'md' }) {
+export function Avatar({ text, size = 'md', src }) {
+  if (src) {
+    return (
+      <div className={`avatar avatar-${size} avatar-photo`}>
+        <img src={src} alt="" />
+      </div>
+    );
+  }
   return <div className={`avatar avatar-${size}`}>{initials(text)}</div>;
 }
 

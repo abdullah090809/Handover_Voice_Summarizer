@@ -8,13 +8,14 @@ import {
   UserCog,
   Bell,
   UserRound,
-  LogOut,
   Stethoscope,
+  X,
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext.jsx';
 import { useLiveUpdates } from '../lib/WebSocketContext.jsx';
 import { Avatar } from './States.jsx';
-import { roleLabel } from '../lib/format.js';
+import { roleLabel, displayName } from '../lib/format.js';
+import { resolveFileUrl } from '../lib/api.js';
 
 const NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, all: true },
@@ -26,7 +27,7 @@ const NAV_ITEMS = [
 ];
 
 export default function Sidebar({ mobileOpen, onClose }) {
-  const { user, isManager, logout } = useAuth();
+  const { user, isManager } = useAuth();
   const { unreadCount } = useLiveUpdates();
 
   const items = NAV_ITEMS.filter((item) => item.all || (item.managerOnly && isManager));
@@ -35,6 +36,11 @@ export default function Sidebar({ mobileOpen, onClose }) {
     <>
       {mobileOpen && <div className="sidebar-scrim" onClick={onClose} />}
       <aside className={`sidebar ${mobileOpen ? 'open' : ''}`}>
+        {mobileOpen && (
+          <button type="button" className="sidebar-close-btn" aria-label="Close menu" onClick={onClose}>
+            <X size={18} />
+          </button>
+        )}
         <div className="sidebar-brand">
           <div className="sidebar-brand-mark">
             <Stethoscope size={18} />
@@ -67,16 +73,13 @@ export default function Sidebar({ mobileOpen, onClose }) {
         </nav>
 
         <div className="sidebar-footer">
-          <div className="sidebar-user">
-            <Avatar text={user?.email} size="md" />
+          <NavLink to="/profile" className="sidebar-user" onClick={onClose}>
+            <Avatar text={displayName(user)} size="md" src={resolveFileUrl(user?.profile_photo_url)} />
             <div className="sidebar-user-info">
-              <strong>{user?.email}</strong>
+              <strong>{displayName(user)}</strong>
               <span>{roleLabel(user?.role)}</span>
             </div>
-          </div>
-          <button className="btn btn-on-dark btn-block" style={{ marginTop: 'var(--space-2)' }} onClick={logout}>
-            <LogOut size={15} /> Sign out
-          </button>
+          </NavLink>
         </div>
       </aside>
     </>

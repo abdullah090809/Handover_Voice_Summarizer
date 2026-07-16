@@ -20,6 +20,13 @@ export function clearToken() {
   localStorage.removeItem(TOKEN_KEY);
 }
 
+/** Resolves a possibly-relative file path (e.g. profile_photo_url) returned by the API into a full URL. */
+export function resolveFileUrl(path) {
+  if (!path) return null;
+  if (/^https?:\/\//i.test(path)) return path;
+  return `${API_BASE_URL}${path}`;
+}
+
 class ApiError extends Error {
   constructor(message, status, detail) {
     super(message);
@@ -28,7 +35,7 @@ class ApiError extends Error {
   }
 }
 
-let onUnauthorized = () => {};
+let onUnauthorized = () => { };
 export function setUnauthorizedHandler(fn) {
   onUnauthorized = fn;
 }
@@ -51,7 +58,7 @@ async function request(endpoint, options = {}, retries = 3, delay = 800) {
   for (let attempt = 0; attempt <= retries; attempt++) {
     let response;
     try {
-      response = await fetch(`${API_BASE_URL}${endpoint}`, { ...options, headers, body });
+      response = await fetch(`${API_BASE_URL}${endpoint}`, { ...options, headers, body, cache: 'no-store' });
     } catch (networkErr) {
       if (attempt === retries) throw new ApiError('Network error. Please check your connection.', 0, null);
       await sleep(delay * 2 ** attempt);
@@ -101,7 +108,8 @@ export const authApi = {
     params.append('turnstile_token', turnstileToken);
     return parse(request('/login', { method: 'POST', body: params, headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }));
   },
-  register: (email, password) => parse(request('/register', { method: 'POST', body: { email, password } })),
+  register: (email, username, password, name) =>
+    parse(request('/register', { method: 'POST', body: { email, username, password, name: name || null } })),
   verify: (email, otpCode) => parse(request('/verify', { method: 'POST', body: { email, otp_code: otpCode } })),
   resendOtp: (email) => parse(request('/resend-otp', { method: 'POST', body: { email } })),
   forgotPassword: (email) => parse(request('/forgot-password', { method: 'POST', body: { email } })),
@@ -114,8 +122,16 @@ export const authApi = {
 // ---------------------------------------------------------------------------
 export const userApi = {
   me: () => parse(request('/users/me')),
+  /** payload can include any of: name, username, phone_number, job_title, bio, profile_photo_url */
+  updateMe: (payload) => parse(request('/users/me', { method: 'PATCH', body: payload })),
   changePassword: (currentPassword, newPassword) =>
     parse(request('/users/me/change-password', { method: 'PATCH', body: { current_password: currentPassword, new_password: newPassword } })),
+  uploadProfilePicture: (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return parse(request('/users/me/profile-picture', { method: 'POST', body: formData }));
+  },
+  removeProfilePicture: () => parse(request('/users/me/profile-picture', { method: 'DELETE' })),
   list: () => parse(request('/users/')),
   create: (payload) => parse(request('/users/', { method: 'POST', body: payload })),
   update: (id, payload) => parse(request(`/users/${id}`, { method: 'PUT', body: payload })),

@@ -30,6 +30,13 @@ services:
       - "8000:8000"
     command: >
       sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    develop:
+      watch:
+        - action: sync
+          path: ./app
+          target: /app/app
+        - action: rebuild
+          path: ./requirements.txt
 
   frontend:
     build: ./frontend
@@ -38,6 +45,15 @@ services:
       - api
     ports:
       - "5173:80"
+    develop:
+      watch:
+        - action: sync
+          path: ./frontend
+          target: /usr/share/nginx/html
+          ignore:
+            - node_modules/
+        - action: rebuild
+          path: ./frontend/package.json
 
 volumes:
   postgres_data:

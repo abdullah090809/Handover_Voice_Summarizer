@@ -66,6 +66,18 @@ def register(request: Request, user: UserCreate, db: Session = Depends(get_db)):
             detail="Email already registered",
         )
 
+    username_taken = (
+        db.query(User).filter(User.username == user.username).first()
+        or db.query(PendingUser).filter(
+            PendingUser.username == user.username, PendingUser.email != user.email
+        ).first()
+    )
+    if username_taken:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username already taken",
+        )
+
     existing_pending = db.query(PendingUser).filter(PendingUser.email == user.email).first()
     hashed_password = hash_password(user.password)
 
@@ -76,6 +88,8 @@ def register(request: Request, user: UserCreate, db: Session = Depends(get_db)):
         )
         otp_code = generate_otp()
         existing_pending.password = hashed_password
+        existing_pending.username = user.username
+        existing_pending.name = user.name
         existing_pending.otp_code = otp_code
         existing_pending.otp_expires_at = get_otp_expiry()
         db.commit()
@@ -83,7 +97,9 @@ def register(request: Request, user: UserCreate, db: Session = Depends(get_db)):
         otp_code = generate_otp()
         new_pending = PendingUser(
             email=user.email,
+            username=user.username,
             password=hashed_password,
+            name=user.name,
             otp_code=otp_code,
             otp_expires_at=get_otp_expiry(),
         )
@@ -155,8 +171,12 @@ def verify_email(request: Request, payload: VerifyOTP, db: Session = Depends(get
 
     new_user = User(
         email=pending.email,
+        username=pending.username,
         password=pending.password,
         role=pending.role,
+        name=pending.name,
+        phone_number=pending.phone_number,
+        job_title=pending.job_title,
     )
     db.add(new_user)
     db.delete(pending)

@@ -27,10 +27,22 @@ export function formatRelative(iso) {
   return formatDate(iso);
 }
 
+export function displayName(user) {
+  if (!user) return '';
+  return user.name?.trim() || user.email;
+}
+
+export function firstName(user) {
+  if (!user) return '';
+  if (user.name?.trim()) return user.name.trim().split(/\s+/)[0];
+  return user.email.split('@')[0];
+}
+
 export function initials(text) {
   if (!text) return '?';
-  const namePart = text.split('@')[0].replace(/[._-]+/g, ' ').trim();
-  const parts = namePart.split(' ').filter(Boolean);
+  const isEmail = text.includes('@');
+  const namePart = isEmail ? text.split('@')[0].replace(/[._-]+/g, ' ').trim() : text.trim();
+  const parts = namePart.split(/\s+/).filter(Boolean);
   if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
   return namePart.slice(0, 2).toUpperCase();
 }

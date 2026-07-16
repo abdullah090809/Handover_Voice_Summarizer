@@ -16,7 +16,7 @@ import { useAuth } from '../lib/AuthContext.jsx';
 import { handoverApi, residentApi, shiftApi, notificationApi, ApiError } from '../lib/api.js';
 import { UrgencyBadge } from '../components/Badge.jsx';
 import { EmptyState } from '../components/States.jsx';
-import { formatRelative, formatDateTime } from '../lib/format.js';
+import { formatRelative, formatDateTime, firstName } from '../lib/format.js';
 import NewHandoverModal from '../components/NewHandoverModal.jsx';
 import HandoverDetailModal from '../components/HandoverDetailModal.jsx';
 
@@ -40,9 +40,9 @@ export default function DashboardPage() {
         if (cancelled) return;
         setHandovers(handoverData);
         setResidents(residentData);
-        shiftApi.list().then((s) => !cancelled && setShifts(s)).catch(() => {});
+        shiftApi.list().then((s) => !cancelled && setShifts(s)).catch(() => { });
         if (isManager) {
-          notificationApi.list(50).then((n) => !cancelled && setNotifications(n)).catch(() => {});
+          notificationApi.list(50).then((n) => !cancelled && setNotifications(n)).catch(() => { });
         }
       } catch (err) {
         if (!cancelled) setError(err instanceof ApiError ? err.message : 'Could not load your dashboard.');
@@ -80,7 +80,7 @@ export default function DashboardPage() {
     <>
       <div className="page-header">
         <div>
-          <h1>Welcome back{user ? `, ${user.email.split('@')[0]}` : ''}</h1>
+          <h1>Welcome back{user ? `, ${firstName(user)}` : ''}</h1>
           <p>{isManager ? "Here's what's happening across your care home today." : "Here's your shift overview."}</p>
         </div>
       </div>

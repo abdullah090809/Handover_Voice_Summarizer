@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import Modal from './Modal.jsx';
 import { Field, IconInput } from './Field.jsx';
-import { Mail, Lock } from 'lucide-react';
+import { Mail, Lock, UserRound } from 'lucide-react';
 import { userApi, ApiError } from '../lib/api.js';
 
 export default function UserFormModal({ user, onClose, onSaved }) {
+  const [name, setName] = useState(user?.name || '');
   const [email, setEmail] = useState(user?.email || '');
   const [role, setRole] = useState(user?.role || 'care_worker');
   const [password, setPassword] = useState('');
@@ -20,11 +21,11 @@ export default function UserFormModal({ user, onClose, onSaved }) {
     setError('');
     try {
       if (isEdit) {
-        const payload = { email, role };
+        const payload = { email, role, name: name.trim() || null };
         if (password) payload.password = password;
         await userApi.update(user.id, payload);
       } else {
-        await userApi.create({ email, password, role });
+        await userApi.create({ email, password, role, name: name.trim() || null });
       }
       onSaved();
     } catch (err) {
@@ -51,6 +52,9 @@ export default function UserFormModal({ user, onClose, onSaved }) {
       }
     >
       <form onSubmit={onSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+        <Field label="Full name" htmlFor="user-name" optional>
+          <IconInput icon={UserRound} id="user-name" type="text" value={name} onChange={(e) => setName(e.target.value)} />
+        </Field>
         <Field label="Email address" htmlFor="user-email">
           <IconInput icon={Mail} id="user-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
         </Field>

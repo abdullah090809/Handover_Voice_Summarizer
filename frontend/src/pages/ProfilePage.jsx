@@ -1,39 +1,53 @@
-import React, { useState } from 'react';
-import { Mail, Shield, CalendarDays, Lock, LogOut } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Moon, ChevronRight, BadgeCheck, Camera, LogOut, UserCog, KeyRound } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext.jsx';
-import { userApi, ApiError } from '../lib/api.js';
 import { useToast } from '../lib/ToastContext.jsx';
+import { useConfirm } from '../lib/ConfirmContext.jsx';
+import { useTheme } from '../lib/ThemeContext.jsx';
 import { Avatar } from '../components/States.jsx';
 import { RoleBadge } from '../components/Badge.jsx';
-import { Field, IconInput } from '../components/Field.jsx';
-import { formatDate } from '../lib/format.js';
+import { displayName } from '../lib/format.js';
+import { userApi, resolveFileUrl, ApiError } from '../lib/api.js';
+import ChangePasswordModal from '../components/ChangePasswordModal.jsx';
 
 export default function ProfilePage() {
-  const { user, logout } = useAuth();
+  const { user, refreshUser, logout } = useAuth();
   const showToast = useToast();
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [error, setError] = useState('');
-  const [saving, setSaving] = useState(false);
+  const confirm = useConfirm();
+  const { isDark, toggleTheme } = useTheme();
+  const navigate = useNavigate();
+  const [uploading, setUploading] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const fileInputRef = useRef(null);
 
-  async function onSubmit(e) {
-    e.preventDefault();
-    setError('');
-    if (newPassword.length < 8) return setError('New password must be at least 8 characters.');
-    setSaving(true);
+  if (!user) return null;
+
+  async function onPickPhoto(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploading(true);
     try {
-      await userApi.changePassword(currentPassword, newPassword);
-      showToast('Password updated.', 'success');
-      setCurrentPassword('');
-      setNewPassword('');
+      await userApi.uploadProfilePicture(file);
+      await refreshUser();
+      showToast('Profile picture updated.', 'success');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not update your password.');
+      showToast(err instanceof ApiError ? err.message : 'Could not upload your photo.', 'error');
     } finally {
-      setSaving(false);
+      setUploading(false);
     }
   }
 
-  if (!user) return null;
+  async function onLogout() {
+    const ok = await confirm({
+      title: 'Sign out',
+      message: 'You\u2019ll need to sign in again to access your account.',
+      confirmLabel: 'Sign out',
+      danger: true,
+    });
+    if (ok) logout();
+  }
 
   return (
     <>
@@ -44,66 +58,107 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      <div className="profile-hero">
-        <Avatar text={user.email} size="lg" />
+      <div className="profile-hero profile-hero-centered">
+        <div className="profile-hero-avatar-wrap">
+          <Avatar text={displayName(user)} size="xl" src={resolveFileUrl(user.profile_photo_url)} />
+          <span className="profile-hero-verified" title="Verified account">
+            <BadgeCheck size={16} />
+          </span>
+          <button
+            type="button"
+            className="avatar-upload-btn"
+            aria-label="Change profile picture"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+          >
+            {uploading ? <span className="spinner" style={{ width: 12, height: 12 }} /> : <Camera size={13} />}
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            style={{ display: 'none' }}
+            onChange={onPickPhoto}
+          />
+        </div>
         <div className="profile-hero-info">
-          <h2>{user.email}</h2>
-          <p>Team member since {formatDate(user.created_at)}</p>
-          <div className="tag-strip">
+          <h2>{displayName(user)}</h2>
+          <p className="profile-hero-email">{user.email}</p>
+          <div className="tag-strip" style={{ justifyContent: 'center' }}>
             <RoleBadge role={user.role} />
           </div>
         </div>
       </div>
 
-      <div className="profile-grid">
-        <div className="panel">
-          <div className="panel-header">
-            <h3>Account details</h3>
-          </div>
-          <div className="panel-body" style={{ padding: 'var(--space-2) var(--space-5) var(--space-4)' }}>
-            <div className="info-row">
-              <span className="info-row-label">
-                <Mail /> Email
-              </span>
-              <span className="info-row-value">{user.email}</span>
-            </div>
-            <div className="info-row">
-              <span className="info-row-label">
-                <Shield /> Role
-              </span>
-              <span className="info-row-value">{user.role}</span>
-            </div>
-            <div className="info-row">
-              <span className="info-row-label">
-                <CalendarDays /> Member since
-              </span>
-              <span className="info-row-value">{formatDate(user.created_at)}</span>
-            </div>
-          </div>
-        </div>
+      <div className="panel">
+        <div className="panel-body no-pad">
+          <button
+            type="button"
+            className="settings-row"
+            onClick={toggleTheme}
+            role="switch"
+            aria-checked={isDark}
+          >
+            <span className="settings-row-icon">
+              <Moon size={17} />
+            </span>
+            <span className="settings-row-body">
+              <span className="settings-row-title">Dark mode</span>
+              <span className="settings-row-meta">Switch the app to a darker color scheme</span>
+            </span>
+            <span className={`toggle-switch-visual ${isDark ? 'checked' : ''}`} aria-hidden="true" />
+          </button>
 
-        <div className="panel">
-          <div className="panel-header">
-            <h3>Change password</h3>
-          </div>
-          <form className="panel-body" style={{ padding: 'var(--space-4) var(--space-5) var(--space-5)', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }} onSubmit={onSubmit}>
-            <Field label="Current password" htmlFor="cur-pass">
-              <IconInput icon={Lock} id="cur-pass" type="password" required value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
-            </Field>
-            <Field label="New password" htmlFor="new-pass" hint="Minimum 8 characters">
-              <IconInput icon={Lock} id="new-pass" type="password" required minLength={8} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
-            </Field>
-            {error && <div className="form-error-banner">{error}</div>}
-            <button type="submit" className="btn btn-primary" disabled={saving}>
-              {saving ? <span className="spinner" /> : 'Update password'}
-            </button>
-          </form>
+          <div className="divider" style={{ marginLeft: 'var(--space-5)' }} />
+
+          <button className="settings-row" onClick={() => navigate('/profile/details')}>
+            <span className="settings-row-icon">
+              <UserCog size={17} />
+            </span>
+            <span className="settings-row-body">
+              <span className="settings-row-title">Profile details</span>
+              <span className="settings-row-meta">Username, role, bio and password</span>
+            </span>
+            <ChevronRight size={17} color="var(--text-tertiary)" />
+          </button>
+
+          <div className="divider" style={{ marginLeft: 'var(--space-5)' }} />
+
+          <button className="settings-row" onClick={() => setShowPasswordModal(true)}>
+            <span className="settings-row-icon">
+              <KeyRound size={17} />
+            </span>
+            <span className="settings-row-body">
+              <span className="settings-row-title">Password</span>
+              <span className="settings-row-meta">Change the password used to sign in</span>
+            </span>
+            <ChevronRight size={17} color="var(--text-tertiary)" />
+          </button>
+
+          <div className="divider" style={{ marginLeft: 'var(--space-5)' }} />
+
+          <button className="settings-row settings-row-danger" onClick={onLogout}>
+            <span className="settings-row-icon settings-row-icon-danger">
+              <LogOut size={17} />
+            </span>
+            <span className="settings-row-body">
+              <span className="settings-row-title">Log out</span>
+              <span className="settings-row-meta">Sign out of your account on this device</span>
+            </span>
+            <ChevronRight size={17} color="var(--text-tertiary)" />
+          </button>
         </div>
       </div>
 
-      <button className="btn btn-secondary" style={{ width: 'fit-content' }} onClick={logout}>
-        <LogOut size={16} /> Sign out
-      </button>
+      {showPasswordModal && (
+        <ChangePasswordModal
+          onClose={() => setShowPasswordModal(false)}
+          onSuccess={() => {
+            setShowPasswordModal(false);
+            showToast('Password updated.', 'success');
+          }}
+        />
+      )}
     </>
   );
 }

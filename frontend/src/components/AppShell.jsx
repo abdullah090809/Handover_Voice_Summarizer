@@ -3,6 +3,7 @@ import { Outlet, useLocation, Link } from 'react-router-dom';
 import { Menu, Bell } from 'lucide-react';
 import Sidebar from './Sidebar.jsx';
 import GlobalSearch from './GlobalSearch.jsx';
+import { useAuth } from '../lib/AuthContext.jsx';
 import { useLiveUpdates } from '../lib/WebSocketContext.jsx';
 
 const TITLES = {
@@ -13,11 +14,13 @@ const TITLES = {
   '/team': { title: 'Team', crumb: 'Team' },
   '/notifications': { title: 'Alerts', crumb: 'Alerts' },
   '/profile': { title: 'My Profile', crumb: 'Profile' },
+  '/profile/details': { title: 'Profile Details', crumb: 'Profile Details' },
 };
 
 export default function AppShell() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
+  const { isManager } = useAuth();
   const { unreadCount } = useLiveUpdates();
 
   const meta = TITLES[location.pathname] || { title: 'Handover', crumb: '' };
@@ -27,7 +30,11 @@ export default function AppShell() {
       <Sidebar mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
       <div className="main-column">
         <header className="topbar">
-          <button className="icon-btn topbar-menu-btn" aria-label="Open menu" onClick={() => setMobileOpen(true)}>
+          <button
+            className="icon-btn topbar-menu-btn"
+            aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+            onClick={() => setMobileOpen((open) => !open)}
+          >
             <Menu size={20} />
           </button>
           <div className="topbar-titles">
@@ -39,12 +46,14 @@ export default function AppShell() {
             <h1 className="topbar-title">{meta.title}</h1>
           </div>
           <GlobalSearch />
-          <div className="topbar-actions">
-            <Link to="/notifications" className="icon-btn" aria-label={`Alerts${unreadCount ? `, ${unreadCount} unread` : ''}`}>
-              <Bell size={19} />
-              {unreadCount > 0 && <span className="icon-btn-dot" />}
-            </Link>
-          </div>
+          {isManager && (
+            <div className="topbar-actions">
+              <Link to="/notifications" className="icon-btn" aria-label={`Alerts${unreadCount ? `, ${unreadCount} unread` : ''}`}>
+                <Bell size={19} />
+                {unreadCount > 0 && <span className="icon-btn-dot" />}
+              </Link>
+            </div>
+          )}
         </header>
         <main className="content-area">
           <div className="content-inner">

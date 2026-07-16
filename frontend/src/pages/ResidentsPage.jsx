@@ -11,6 +11,8 @@ import { SkeletonGrid, EmptyState, ErrorState } from '../components/States.jsx';
 import ResidentDetailModal from '../components/ResidentDetailModal.jsx';
 import ResidentFormModal from '../components/ResidentFormModal.jsx';
 import HandoverDetailModal from '../components/HandoverDetailModal.jsx';
+import Pagination from '../components/Pagination.jsx';
+import { usePagination } from '../lib/usePagination.js';
 
 export default function ResidentsPage() {
   const { isManager } = useAuth();
@@ -76,6 +78,12 @@ export default function ResidentsPage() {
   }
 
   const filtered = residents ? residents.filter((r) => (statusFilter ? r.status === statusFilter : true)) : [];
+  const { pageItems, page, pageCount, total, setPage, resetToFirstPage } = usePagination(filtered, { pageSize: 9 });
+
+  function handleStatusFilterChange(value) {
+    setStatusFilter(value);
+    resetToFirstPage();
+  }
 
   return (
     <>
@@ -95,7 +103,7 @@ export default function ResidentsPage() {
 
       {isManager && (
         <div className="filter-bar">
-          <select className="select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <select className="select" value={statusFilter} onChange={(e) => handleStatusFilterChange(e.target.value)}>
             <option value="active">Active</option>
             <option value="discharged">Discharged</option>
             <option value="deceased">Deceased</option>
@@ -110,24 +118,27 @@ export default function ResidentsPage() {
         <EmptyState icon={Users} title="No residents found" message="Residents matching this filter will appear here." />
       )}
       {residents !== null && filtered.length > 0 && (
-        <div className="card-grid">
-          {filtered.map((r) => (
-            <div key={r.id} className="card card-clickable entity-card" role="button" tabIndex={0} onClick={() => setOpenResident(r)}>
-              <div className="entity-card-top">
-                <div className="entity-card-heading">
-                  <Avatar text={r.name} size="lg" />
-                  <div>
-                    <div className="entity-card-title">{r.name}</div>
-                    <div className="entity-card-subtitle">Resident #{r.id}</div>
+        <>
+          <div className="card-grid">
+            {pageItems.map((r) => (
+              <div key={r.id} className="card card-clickable entity-card" role="button" tabIndex={0} onClick={() => setOpenResident(r)}>
+                <div className="entity-card-top">
+                  <div className="entity-card-heading">
+                    <Avatar text={r.name} size="lg" />
+                    <div>
+                      <div className="entity-card-title">{r.name}</div>
+                      <div className="entity-card-subtitle">Resident #{r.id}</div>
+                    </div>
                   </div>
                 </div>
+                <div className="entity-card-body">
+                  <ResidentStatusBadge status={r.status} />
+                </div>
               </div>
-              <div className="entity-card-body">
-                <ResidentStatusBadge status={r.status} />
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+          <Pagination page={page} pageCount={pageCount} total={total} pageSize={9} onPageChange={setPage} itemLabel="residents" />
+        </>
       )}
 
       {openResident && (

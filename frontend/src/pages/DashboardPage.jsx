@@ -113,7 +113,7 @@ export default function DashboardPage() {
           <div className="panel">
             <div className="panel-header">
               <h3>Recent handovers</h3>
-              <button className="panel-link" onClick={() => navigate('/handovers')}>
+              <button className="panel-link" onClick={() => navigate('/handovers', { viewTransition: true })}>
                 View all
               </button>
             </div>
@@ -145,7 +145,7 @@ export default function DashboardPage() {
             <div className="panel">
               <div className="panel-header">
                 <h3>Residents needing attention</h3>
-                <button className="panel-link" onClick={() => navigate('/residents')}>
+                <button className="panel-link" onClick={() => navigate('/residents', { viewTransition: true })}>
                   View residents
                 </button>
               </div>
@@ -211,33 +211,33 @@ export default function DashboardPage() {
                   </button>
                 )}
                 {isManager && (
-                  <button className="quick-action-btn" onClick={() => navigate('/residents')}>
+                  <button className="quick-action-btn" onClick={() => navigate('/residents', { viewTransition: true })}>
                     <Users />
                     <strong>Add resident</strong>
                     <span>Register a new resident</span>
                   </button>
                 )}
                 {isManager && (
-                  <button className="quick-action-btn" onClick={() => navigate('/team')}>
+                  <button className="quick-action-btn" onClick={() => navigate('/team', { viewTransition: true })}>
                     <UserCog />
                     <strong>Manage team</strong>
                     <span>Add or update staff</span>
                   </button>
                 )}
                 {!isManager && (
-                  <button className="quick-action-btn" onClick={() => navigate('/shifts')}>
+                  <button className="quick-action-btn" onClick={() => navigate('/shifts', { viewTransition: true })}>
                     <Clock3 />
                     <strong>Log a shift</strong>
                     <span>Record your working hours</span>
                   </button>
                 )}
-                <button className="quick-action-btn" onClick={() => navigate('/residents')}>
+                <button className="quick-action-btn" onClick={() => navigate('/residents', { viewTransition: true })}>
                   <Users />
                   <strong>View residents</strong>
                   <span>{activeResidents.length} active</span>
                 </button>
                 {isManager && (
-                  <button className="quick-action-btn" onClick={() => navigate('/notifications')}>
+                  <button className="quick-action-btn" onClick={() => navigate('/notifications', { viewTransition: true })}>
                     <Bell />
                     <strong>Review alerts</strong>
                     <span>{unreadAlerts} unread</span>

@@ -1,0 +1,442 @@
+/* ==========================================================================
+   MOBILE-FIRST ADDITIONS
+   Loaded last so it can safely tighten touch targets and add the mobile-only
+   chrome (bottom nav, FAB) without having to fight specificity in the
+   existing stylesheets. Nothing here removes or overrides desktop layout —
+   everything is gated behind mobile-width media queries except where noted.
+   ========================================================================== */
+
+/* ---- Touch targets -------------------------------------------------------
+   44px is the minimum recommended hit area (WCAG 2.5.5 / iOS HIG). Buttons
+   below that on phones get a transparent hit-area expansion so we don't have
+   to resize the visuals themselves and break desktop density. */
+@media (max-width: 640px) {
+  .icon-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .btn {
+    min-height: 44px;
+  }
+
+  .btn-sm {
+    min-height: 40px;
+    padding: 0 var(--space-4);
+  }
+
+  .btn-icon {
+    width: 44px;
+  }
+
+  .sidebar-link {
+    padding: var(--space-4) var(--space-3);
+    min-height: 44px;
+  }
+
+  .select,
+  .input {
+    min-height: 44px;
+  }
+}
+
+/* ==========================================================================
+   PAGINATION
+   ========================================================================== */
+.pagination {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-2) 0;
+  border-top: 1px solid var(--border-subtle);
+  margin-top: var(--space-2);
+}
+
+.pagination-summary {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  text-align: center;
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.pagination-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 44px;
+  min-width: 44px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+  background: var(--surface-card);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard);
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background: var(--surface-hover-strong);
+}
+
+.pagination-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pagination-pages {
+  display: none;
+  align-items: center;
+  gap: 2px;
+}
+
+.pagination-page {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  background: none;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--font-mono);
+}
+
+.pagination-page:hover {
+  background: var(--surface-hover);
+}
+
+.pagination-page.active {
+  background: var(--teal-600);
+  border-color: var(--teal-600);
+  color: var(--white);
+}
+
+.pagination-ellipsis {
+  width: 24px;
+  text-align: center;
+  color: var(--text-tertiary);
+}
+
+.pagination-mobile-indicator {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  flex: 1;
+  text-align: center;
+}
+
+.pagination-size {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+
+.pagination-size .select {
+  width: auto;
+  height: 36px;
+  min-height: 36px;
+  font-size: var(--text-xs);
+}
+
+.pagination-btn-label {
+  display: none;
+}
+
+@media (min-width: 520px) {
+  .pagination-btn-label {
+    display: inline;
+  }
+}
+
+@media (min-width: 640px) {
+  .pagination {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .pagination-summary {
+    text-align: left;
+    order: 0;
+  }
+
+  .pagination-controls {
+    order: 1;
+    justify-content: center;
+    flex: 1;
+  }
+
+  .pagination-size {
+    order: 2;
+  }
+
+  .pagination-pages {
+    display: flex;
+  }
+
+  .pagination-mobile-indicator {
+    display: none;
+  }
+}
+
+/* ==========================================================================
+   BOTTOM TAB BAR (phones only)
+   `.content-area` already reserves bottom padding below 640px (see
+   layout.css) so page content clears this bar without extra per-page work.
+   ========================================================================== */
+.mobile-tabbar {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .mobile-tabbar {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 45;
+    background: var(--surface-card);
+    border-top: 1px solid var(--border-default);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+    box-shadow: 0 -2px 12px rgba(15, 23, 34, 0.06);
+  }
+
+  .content-area {
+    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px) + var(--space-6));
+  }
+
+  .topbar-menu-btn {
+    display: none;
+  }
+
+  .mobile-tabbar-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-height: 56px;
+    padding: var(--space-2) 0;
+    color: var(--text-tertiary);
+    text-decoration: none;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 10px;
+    font-weight: 600;
+  }
+
+  .mobile-tabbar-item svg {
+    width: 21px;
+    height: 21px;
+  }
+
+  .mobile-tabbar-item.active {
+    color: var(--teal-600);
+  }
+
+  .mobile-tabbar-more-icon {
+    position: relative;
+    display: inline-flex;
+  }
+
+  .mobile-tabbar-more-icon .icon-btn-dot {
+    top: -2px;
+    right: -2px;
+    border-color: var(--surface-card);
+  }
+
+  /* Hide the hamburger-triggered sidebar's own scrim behind the tab bar so
+     taps on the tab bar itself are never intercepted by the drawer scrim. */
+  .sidebar-scrim {
+    z-index: 44;
+  }
+
+  .sidebar {
+    z-index: 46;
+  }
+}
+
+/* ==========================================================================
+   FLOATING ACTION BUTTON (mobile only — e.g. "New handover")
+   Desktop keeps the header button only; the FAB duplicates that action
+   within thumb reach on phones, where the header can scroll out of view.
+   ========================================================================== */
+.mobile-fab {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .mobile-fab {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    right: var(--space-5);
+    bottom: calc(56px + env(safe-area-inset-bottom, 0px) + var(--space-4));
+    width: 56px;
+    height: 56px;
+    border-radius: var(--radius-full);
+    background: var(--teal-600);
+    color: var(--white);
+    border: none;
+    box-shadow: var(--shadow-lg);
+    z-index: 46;
+    cursor: pointer;
+    transition: background var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard);
+  }
+
+  .mobile-fab:hover {
+    background: var(--teal-700);
+  }
+
+  .mobile-fab:active {
+    transform: scale(0.94);
+  }
+}
+
+/* ==========================================================================
+   RESPONSIVE TABLE → CARD LIST (phones)
+   Avoids horizontal scrolling on the Team table: below 640px each row
+   becomes a stacked card, with `data-label` (set in TeamPage.jsx) supplying
+   the field label next to each value.
+   ========================================================================== */
+@media (max-width: 640px) {
+  .table-wrap {
+    border: none;
+    background: none;
+    overflow: visible;
+  }
+
+  table.data-table,
+  table.data-table thead,
+  table.data-table tbody,
+  table.data-table tr,
+  table.data-table td {
+    display: block;
+    width: 100%;
+  }
+
+  table.data-table thead {
+    display: none;
+  }
+
+  table.data-table tr {
+    background: var(--surface-card);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    margin-bottom: var(--space-3);
+    padding: var(--space-2) var(--space-4);
+  }
+
+  table.data-table td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--border-subtle);
+    text-align: right;
+  }
+
+  table.data-table td:last-child {
+    border-bottom: none;
+  }
+
+  table.data-table td[data-label]:not([data-label=""])::before {
+    content: attr(data-label);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-tertiary);
+    flex-shrink: 0;
+    text-align: left;
+  }
+
+  /* The "Team member" cell holds an avatar + name row, not a simple value —
+     let it take the full row width instead of splitting label/value. */
+  table.data-table td[data-label='Team member'] {
+    justify-content: flex-start;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  table.data-table td[data-label='Team member']::before {
+    display: none;
+  }
+
+  table.data-table td[data-label='Team member'] > div {
+    width: 100%;
+  }
+}
+
+/* ==========================================================================
+   VIEW TRANSITIONS
+   Uses the native View Transition API (enabled per-navigation via the
+   `viewTransition` prop on <Link>/<NavLink>/<Navigate> and the
+   `{ viewTransition: true }` option on navigate()). Browsers without support
+   simply navigate instantly — no fallback code needed.
+   A single, quiet cross-fade for the whole page: fast, and not distracting
+   during a clinical handover, never a slide/zoom gimmick.
+   ========================================================================== */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: var(--duration-slow);
+  animation-timing-function: var(--ease-standard);
+}
+
+::view-transition-old(root) {
+  animation-name: handover-view-out;
+}
+
+::view-transition-new(root) {
+  animation-name: handover-view-in;
+}
+
+@keyframes handover-view-out {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes handover-view-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}

@@ -56,6 +56,7 @@ export default function Sidebar({ mobileOpen, onClose }) {
             <NavLink
               key={item.to}
               to={item.to}
+              viewTransition
               className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
               onClick={onClose}
             >
@@ -66,14 +67,14 @@ export default function Sidebar({ mobileOpen, onClose }) {
           ))}
 
           <div className="sidebar-section-label">Account</div>
-          <NavLink to="/profile" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} onClick={onClose}>
+          <NavLink to="/profile" viewTransition className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} onClick={onClose}>
             <UserRound />
             My Profile
           </NavLink>
         </nav>
 
         <div className="sidebar-footer">
-          <NavLink to="/profile" className="sidebar-user" onClick={onClose}>
+          <NavLink to="/profile" viewTransition className="sidebar-user" onClick={onClose}>
             <Avatar text={displayName(user)} size="md" src={resolveFileUrl(user?.profile_photo_url)} />
             <div className="sidebar-user-info">
               <strong>{displayName(user)}</strong>

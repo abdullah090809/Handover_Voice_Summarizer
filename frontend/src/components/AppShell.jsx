@@ -2,9 +2,12 @@ import React, { useState } from 'react';
 import { Outlet, useLocation, Link } from 'react-router-dom';
 import { Menu, Bell } from 'lucide-react';
 import Sidebar from './Sidebar.jsx';
+import BottomNav from './BottomNav.jsx';
 import GlobalSearch from './GlobalSearch.jsx';
 import { useAuth } from '../lib/AuthContext.jsx';
 import { useLiveUpdates } from '../lib/WebSocketContext.jsx';
+
+const TAB_ROUTES = ['/dashboard', '/handovers', '/residents', '/shifts'];
 
 const TITLES = {
   '/dashboard': { title: 'Dashboard', crumb: 'Overview' },
@@ -48,7 +51,7 @@ export default function AppShell() {
           <GlobalSearch />
           {isManager && (
             <div className="topbar-actions">
-              <Link to="/notifications" className="icon-btn" aria-label={`Alerts${unreadCount ? `, ${unreadCount} unread` : ''}`}>
+              <Link to="/notifications" viewTransition className="icon-btn" aria-label={`Alerts${unreadCount ? `, ${unreadCount} unread` : ''}`}>
                 <Bell size={19} />
                 {unreadCount > 0 && <span className="icon-btn-dot" />}
               </Link>
@@ -60,6 +63,11 @@ export default function AppShell() {
             <Outlet />
           </div>
         </main>
+        <BottomNav
+          onOpenMore={() => setMobileOpen(true)}
+          moreActive={mobileOpen || !TAB_ROUTES.includes(location.pathname)}
+          unreadCount={unreadCount}
+        />
       </div>
     </div>
   );

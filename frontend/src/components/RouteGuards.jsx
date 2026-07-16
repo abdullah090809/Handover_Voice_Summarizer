@@ -13,19 +13,19 @@ export function FullScreenLoader() {
 export function RequireAuth({ children }) {
   const { status } = useAuth();
   if (status === 'loading') return <FullScreenLoader />;
-  if (status === 'anon') return <Navigate to="/login" replace />;
+  if (status === 'anon') return <Navigate to="/login" replace viewTransition />;
   return children;
 }
 
 export function RequireManager({ children }) {
   const { isManager } = useAuth();
-  if (!isManager) return <Navigate to="/dashboard" replace />;
+  if (!isManager) return <Navigate to="/dashboard" replace viewTransition />;
   return children;
 }
 
 export function RedirectIfAuthed({ children }) {
   const { status } = useAuth();
   if (status === 'loading') return <FullScreenLoader />;
-  if (status === 'authed') return <Navigate to="/dashboard" replace />;
+  if (status === 'authed') return <Navigate to="/dashboard" replace viewTransition />;
   return children;
 }

@@ -34,11 +34,16 @@ jobs:
       database_password: ${{ secrets.DATABASE_PASSWORD }}
       database_name: ${{ secrets.TEST_DATABASE_NAME }}
       test_database_name: ${{ secrets.TEST_DATABASE_NAME }}
+
       secret_key: ${{ secrets.SECRET_KEY }}
       algorithm: ${{ secrets.ALGORITHM }}
       access_token_expire_minutes: ${{ secrets.ACCESS_TOKEN_EXPIRE_MINUTES }}
+
       gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
       resend_api_key: ${{ secrets.RESEND_API_KEY }}
+
+      # Added this
+      turnstile_secret_key: ${{ secrets.TURNSTILE_SECRET_KEY }}
 
     steps:
       - name: Checkout code

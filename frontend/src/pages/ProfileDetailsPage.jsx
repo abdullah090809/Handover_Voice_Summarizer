@@ -35,7 +35,7 @@ export default function ProfileDetailsPage() {
 
     return (
         <>
-            <button type="button" className="auth-back" style={{ marginBottom: 'var(--space-2)' }} onClick={() => navigate('/profile')}>
+            <button type="button" className="auth-back" style={{ marginBottom: 'var(--space-2)' }} onClick={() => navigate('/profile', { viewTransition: true })}>
                 <ArrowLeft /> Back to profile
             </button>
 

@@ -6,6 +6,8 @@ import { useToast } from '../lib/ToastContext.jsx';
 import { useConfirm } from '../lib/ConfirmContext.jsx';
 import { SkeletonGrid, EmptyState, ErrorState } from '../components/States.jsx';
 import ShiftFormModal from '../components/ShiftFormModal.jsx';
+import Pagination from '../components/Pagination.jsx';
+import { usePagination } from '../lib/usePagination.js';
 import { formatDateTime } from '../lib/format.js';
 
 function getShiftStatus(shift) {
@@ -65,9 +67,12 @@ export default function ShiftsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isManager]);
 
+  const { pageItems, page, pageCount, total, setPage, resetToFirstPage } = usePagination(shifts || [], { pageSize: 9 });
+
   function onWorkerChange(id) {
     setSelectedWorkerId(id);
     setShifts(null);
+    resetToFirstPage();
     load(id);
   }
 
@@ -121,38 +126,41 @@ export default function ShiftsPage() {
         <EmptyState icon={Clock} title="No shifts found" message={isManager ? 'This team member has no logged shifts yet.' : 'Log your first shift to get started.'} />
       )}
       {shifts !== null && shifts.length > 0 && (
-        <div className="card-grid">
-          {shifts.map((s) => {
-            const st = getShiftStatus(s);
-            return (
-              <div className="card entity-card" key={s.id}>
-                <div className="entity-card-top">
-                  <div>
-                    <div className="entity-card-title">Shift #{s.id}</div>
-                    <div className="entity-card-subtitle">{formatDateTime(s.start_time)}</div>
+        <>
+          <div className="card-grid">
+            {pageItems.map((s) => {
+              const st = getShiftStatus(s);
+              return (
+                <div className="card entity-card" key={s.id}>
+                  <div className="entity-card-top">
+                    <div>
+                      <div className="entity-card-title">Shift #{s.id}</div>
+                      <div className="entity-card-subtitle">{formatDateTime(s.start_time)}</div>
+                    </div>
+                    <span className={`badge ${STATUS_BADGE[st].cls}`}>{STATUS_BADGE[st].label}</span>
                   </div>
-                  <span className={`badge ${STATUS_BADGE[st].cls}`}>{STATUS_BADGE[st].label}</span>
+                  <div className="entity-card-body">
+                    <div>
+                      <strong style={{ color: 'var(--text-primary)' }}>Ends: </strong>
+                      {s.end_time ? formatDateTime(s.end_time) : 'Not yet clocked out'}
+                    </div>
+                  </div>
+                  {!isManager && (
+                    <div className="entity-card-footer">
+                      <button className="icon-btn" aria-label="Edit shift" onClick={() => setFormShift(s)}>
+                        <Pencil size={15} />
+                      </button>
+                      <button className="icon-btn" aria-label="Delete shift" onClick={() => handleDelete(s)}>
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  )}
                 </div>
-                <div className="entity-card-body">
-                  <div>
-                    <strong style={{ color: 'var(--text-primary)' }}>Ends: </strong>
-                    {s.end_time ? formatDateTime(s.end_time) : 'Not yet clocked out'}
-                  </div>
-                </div>
-                {!isManager && (
-                  <div className="entity-card-footer">
-                    <button className="icon-btn" aria-label="Edit shift" onClick={() => setFormShift(s)}>
-                      <Pencil size={15} />
-                    </button>
-                    <button className="icon-btn" aria-label="Delete shift" onClick={() => handleDelete(s)}>
-                      <Trash2 size={15} />
-                    </button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+          <Pagination page={page} pageCount={pageCount} total={total} pageSize={9} onPageChange={setPage} itemLabel="shifts" />
+        </>
       )}
 
       {formShift !== undefined && (

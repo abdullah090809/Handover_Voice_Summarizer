@@ -9,6 +9,8 @@ import HandoverCard from '../components/HandoverCard.jsx';
 import HandoverDetailModal from '../components/HandoverDetailModal.jsx';
 import NewHandoverModal from '../components/NewHandoverModal.jsx';
 import { SkeletonGrid, EmptyState, ErrorState } from '../components/States.jsx';
+import Pagination from '../components/Pagination.jsx';
+import { usePagination } from '../lib/usePagination.js';
 
 export default function HandoversPage() {
   const { isManager } = useAuth();
@@ -70,6 +72,17 @@ export default function HandoversPage() {
   }
 
   const activeResidents = residents.filter((r) => r.status === 'active');
+  const { pageItems, page, pageCount, total, setPage, resetToFirstPage } = usePagination(notes || [], { pageSize: 9 });
+
+  function handleUrgencyFilterChange(value) {
+    setUrgencyFilter(value);
+    resetToFirstPage();
+  }
+
+  function handleResidentFilterChange(value) {
+    setResidentFilter(value);
+    resetToFirstPage();
+  }
 
   return (
     <>
@@ -88,14 +101,14 @@ export default function HandoversPage() {
       </div>
 
       <div className="filter-bar">
-        <select className="select" value={urgencyFilter} onChange={(e) => setUrgencyFilter(e.target.value)} aria-label="Filter by urgency">
+        <select className="select" value={urgencyFilter} onChange={(e) => handleUrgencyFilterChange(e.target.value)} aria-label="Filter by urgency">
           <option value="">All urgency levels</option>
           <option value="low">Low</option>
           <option value="medium">Medium</option>
           <option value="high">High</option>
           <option value="urgent">Urgent</option>
         </select>
-        <select className="select" value={residentFilter} onChange={(e) => setResidentFilter(e.target.value)} aria-label="Filter by resident">
+        <select className="select" value={residentFilter} onChange={(e) => handleResidentFilterChange(e.target.value)} aria-label="Filter by resident">
           <option value="">All residents</option>
           {residents.map((r) => (
             <option key={r.id} value={r.id}>
@@ -126,18 +139,27 @@ export default function HandoversPage() {
         />
       )}
       {notes !== null && notes.length > 0 && (
-        <div className="card-grid">
-          {notes.map((note) => (
-            <HandoverCard
-              key={note.id}
-              note={note}
-              residentName={residentMap[note.resident_id]}
-              canDelete={isManager}
-              onOpen={setOpenNote}
-              onDelete={handleDelete}
-            />
-          ))}
-        </div>
+        <>
+          <div className="card-grid">
+            {pageItems.map((note) => (
+              <HandoverCard
+                key={note.id}
+                note={note}
+                residentName={residentMap[note.resident_id]}
+                canDelete={isManager}
+                onOpen={setOpenNote}
+                onDelete={handleDelete}
+              />
+            ))}
+          </div>
+          <Pagination page={page} pageCount={pageCount} total={total} pageSize={9} onPageChange={setPage} itemLabel="handover notes" />
+        </>
+      )}
+
+      {!isManager && (
+        <button type="button" className="mobile-fab" onClick={() => setShowNewModal(true)} aria-label="New handover">
+          <Plus size={24} />
+        </button>
       )}
 
       {openNote && (

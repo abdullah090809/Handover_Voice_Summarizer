@@ -6,6 +6,8 @@ import { useLiveUpdates } from '../lib/WebSocketContext.jsx';
 import { EmptyState, ErrorState } from '../components/States.jsx';
 import { UrgencyBadge } from '../components/Badge.jsx';
 import HandoverDetailModal from '../components/HandoverDetailModal.jsx';
+import Pagination from '../components/Pagination.jsx';
+import { usePagination } from '../lib/usePagination.js';
 import { formatRelative } from '../lib/format.js';
 
 export default function NotificationsPage() {
@@ -67,6 +69,7 @@ export default function NotificationsPage() {
   }
 
   const unreadCount = items?.filter((n) => !n.is_read).length || 0;
+  const { pageItems, page, pageCount, total, setPage } = usePagination(items || [], { pageSize: 10 });
 
   return (
     <>
@@ -98,40 +101,43 @@ export default function NotificationsPage() {
       {items !== null && items.length === 0 && <EmptyState icon={Bell} title="No alerts" message="Urgent handovers and resident status changes will appear here." />}
 
       {items !== null && items.length > 0 && (
-        <div className="panel">
-          <div className="panel-body no-pad">
-            {items.map((n) => (
-              <div
-                key={n.id}
-                className="list-row"
-                style={{
-                  borderRadius: 0,
-                  borderBottom: '1px solid var(--border-subtle)',
-                  background: n.is_read ? 'transparent' : 'var(--teal-50)',
-                  cursor: n.handover_note_id ? 'pointer' : 'default',
-                }}
-                onClick={() => {
-                  markRead(n);
-                  openHandoverNote(n);
-                }}
-              >
-                <span className="list-row-icon" style={n.urgency_flag === 'urgent' || n.urgency_flag === 'high' ? { background: 'var(--urgency-high-bg)', color: 'var(--urgency-high)' } : undefined}>
-                  <TriangleAlert />
-                </span>
-                <span className="list-row-body">
-                  <span className="list-row-title" style={{ fontWeight: n.is_read ? 500 : 700 }}>
-                    {n.message}
+        <>
+          <div className="panel">
+            <div className="panel-body no-pad">
+              {pageItems.map((n) => (
+                <div
+                  key={n.id}
+                  className="list-row"
+                  style={{
+                    borderRadius: 0,
+                    borderBottom: '1px solid var(--border-subtle)',
+                    background: n.is_read ? 'transparent' : 'var(--teal-50)',
+                    cursor: n.handover_note_id ? 'pointer' : 'default',
+                  }}
+                  onClick={() => {
+                    markRead(n);
+                    openHandoverNote(n);
+                  }}
+                >
+                  <span className="list-row-icon" style={n.urgency_flag === 'urgent' || n.urgency_flag === 'high' ? { background: 'var(--urgency-high-bg)', color: 'var(--urgency-high)' } : undefined}>
+                    <TriangleAlert />
                   </span>
-                  <span className="list-row-meta">{formatRelative(n.created_at)}</span>
-                </span>
-                <span className="list-row-side">
-                  <UrgencyBadge urgency={n.urgency_flag} />
-                  {!n.is_read && <span className="icon-btn-dot" style={{ position: 'static' }} />}
-                </span>
-              </div>
-            ))}
+                  <span className="list-row-body">
+                    <span className="list-row-title" style={{ fontWeight: n.is_read ? 500 : 700 }}>
+                      {n.message}
+                    </span>
+                    <span className="list-row-meta">{formatRelative(n.created_at)}</span>
+                  </span>
+                  <span className="list-row-side">
+                    <UrgencyBadge urgency={n.urgency_flag} />
+                    {!n.is_read && <span className="icon-btn-dot" style={{ position: 'static' }} />}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
+          <Pagination page={page} pageCount={pageCount} total={total} pageSize={10} onPageChange={setPage} itemLabel="alerts" />
+        </>
       )}
 
       {openNote && <HandoverDetailModal note={openNote} canDelete={false} onClose={() => setOpenNote(null)} />}

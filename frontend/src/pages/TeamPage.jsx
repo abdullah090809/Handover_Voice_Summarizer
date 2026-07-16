@@ -9,6 +9,8 @@ import { Avatar } from '../components/States.jsx';
 import { RoleBadge } from '../components/Badge.jsx';
 import { SkeletonGrid, EmptyState, ErrorState } from '../components/States.jsx';
 import UserFormModal from '../components/UserFormModal.jsx';
+import Pagination from '../components/Pagination.jsx';
+import { usePagination } from '../lib/usePagination.js';
 import { formatDate, displayName } from '../lib/format.js';
 
 export default function TeamPage() {
@@ -78,6 +80,8 @@ export default function TeamPage() {
     }
   }
 
+  const { pageItems, page, pageCount, total, setPage } = usePagination(users || [], { pageSize: 10 });
+
   return (
     <>
       <div className="page-header">
@@ -97,7 +101,8 @@ export default function TeamPage() {
       {users !== null && users.length === 0 && <EmptyState icon={UserCog} title="No team members yet" message="Add staff accounts to get started." />}
 
       {users !== null && users.length > 0 && (
-        <div className="table-wrap">
+        <>
+          <div className="table-wrap">
           <table className="data-table">
             <thead>
               <tr>
@@ -108,9 +113,9 @@ export default function TeamPage() {
               </tr>
             </thead>
             <tbody>
-              {users.map((u) => (
+              {pageItems.map((u) => (
                 <tr key={u.id}>
-                  <td>
+                  <td data-label="Team member">
                     <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
                       <Avatar text={displayName(u)} size="sm" />
                       <div>
@@ -120,11 +125,11 @@ export default function TeamPage() {
                       {u.id === me.id && <span className="badge badge-info">You</span>}
                     </div>
                   </td>
-                  <td>
+                  <td data-label="Role">
                     <RoleBadge role={u.role} />
                   </td>
-                  <td style={{ color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)' }}>{formatDate(u.created_at)}</td>
-                  <td style={{ textAlign: 'right' }}>
+                  <td data-label="Joined" style={{ color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)' }}>{formatDate(u.created_at)}</td>
+                  <td data-label="" style={{ textAlign: 'right' }}>
                     <button
                       className="icon-btn"
                       aria-label="Actions"
@@ -159,7 +164,9 @@ export default function TeamPage() {
               ))}
             </tbody>
           </table>
-        </div>
+          </div>
+          <Pagination page={page} pageCount={pageCount} total={total} pageSize={10} onPageChange={setPage} itemLabel="team members" />
+        </>
       )}
 
       {formUser !== undefined && (

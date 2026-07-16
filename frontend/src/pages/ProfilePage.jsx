@@ -111,7 +111,7 @@ export default function ProfilePage() {
 
           <div className="divider" style={{ marginLeft: 'var(--space-5)' }} />
 
-          <button className="settings-row" onClick={() => navigate('/profile/details')}>
+          <button className="settings-row" onClick={() => navigate('/profile/details', { viewTransition: true })}>
             <span className="settings-row-icon">
               <UserCog size={17} />
             </span>

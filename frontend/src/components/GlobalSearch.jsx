@@ -68,7 +68,7 @@ export default function GlobalSearch() {
                   onClick={() => {
                     setOpen(false);
                     setQuery('');
-                    navigate('/residents', { state: { openResidentId: r.id } });
+                    navigate('/residents', { state: { openResidentId: r.id }, viewTransition: true });
                   }}
                 >
                   <Avatar text={r.name} size="sm" />
@@ -92,7 +92,7 @@ export default function GlobalSearch() {
                   onClick={() => {
                     setOpen(false);
                     setQuery('');
-                    navigate('/team');
+                    navigate('/team', { viewTransition: true });
                   }}
                 >
                   <Avatar text={m.name || m.email} size="sm" src={resolveFileUrl(m.profile_photo_url)} />

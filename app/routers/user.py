@@ -34,25 +34,22 @@ def update_current_user(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if payload.username is not None and payload.username != current_user.username:
-        existing = db.query(User).filter(User.username == payload.username).first()
-        if existing:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Username already taken",
-            )
-        current_user.username = payload.username
+    data = payload.model_dump(exclude_unset=True)
 
-    if payload.name is not None:
-        current_user.name = payload.name
-    if payload.phone_number is not None:
-        current_user.phone_number = payload.phone_number
-    if payload.job_title is not None:
-        current_user.job_title = payload.job_title
-    if payload.bio is not None:
-        current_user.bio = payload.bio
-    if payload.profile_photo_url is not None:
-        current_user.profile_photo_url = payload.profile_photo_url
+    if "username" in data:
+        new_username = data.pop("username")
+        if new_username and new_username != current_user.username:
+            existing = db.query(User).filter(User.username == new_username).first()
+            if existing:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Username already taken",
+                )
+            current_user.username = new_username
+        # if new_username is empty/None, ignore — username can never be cleared
+
+    for field, value in data.items():
+        setattr(current_user, field, value)
 
     db.commit()
     db.refresh(current_user)
@@ -207,40 +204,34 @@ def update_user(
             detail="User not found",
         )
 
-    if payload.email is not None:
-        existing = db.query(User).filter(User.email == payload.email, User.id != id).first()
+    data = payload.model_dump(exclude_unset=True)
+
+    if "email" in data and data["email"] is not None:
+        existing = db.query(User).filter(User.email == data["email"], User.id != id).first()
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Email already registered",
             )
-        user.email = payload.email
 
-    if payload.username is not None:
-        existing = db.query(User).filter(User.username == payload.username, User.id != id).first()
-        if existing:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Username already taken",
-            )
-        user.username = payload.username
+    if "username" in data:
+        new_username = data.pop("username")
+        if new_username:
+            existing = db.query(User).filter(User.username == new_username, User.id != id).first()
+            if existing:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Username already taken",
+                )
+            user.username = new_username
 
-    if payload.role is not None:
-        user.role = payload.role
+    if "password" in data:
+        pw = data.pop("password")
+        if pw:
+            user.password = hash_password(pw)
 
-    if payload.password is not None:
-        user.password = hash_password(payload.password)
-
-    if payload.name is not None:
-        user.name = payload.name
-    if payload.phone_number is not None:
-        user.phone_number = payload.phone_number
-    if payload.job_title is not None:
-        user.job_title = payload.job_title
-    if payload.bio is not None:
-        user.bio = payload.bio
-    if payload.profile_photo_url is not None:
-        user.profile_photo_url = payload.profile_photo_url
+    for field, value in data.items():
+        setattr(user, field, value)
 
     db.commit()
     db.refresh(user)

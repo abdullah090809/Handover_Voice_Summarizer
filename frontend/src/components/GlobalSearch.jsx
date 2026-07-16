@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, User, UserRound } from 'lucide-react';
-import { residentApi, userApi } from '../lib/api.js';
+import { Search } from 'lucide-react';
+import { residentApi, userApi, resolveFileUrl } from '../lib/api.js';
 import { useAuth } from '../lib/AuthContext.jsx';
+import { Avatar } from './States.jsx';
 
 export default function GlobalSearch() {
   const { isManager } = useAuth();
@@ -53,67 +54,56 @@ export default function GlobalSearch() {
         aria-label="Search residents and team members"
       />
       {open && q && (
-        <div
-          style={{
-            position: 'absolute',
-            top: '46px',
-            left: 0,
-            right: 0,
-            background: 'var(--surface-card)',
-            border: '1px solid var(--border-default)',
-            borderRadius: 'var(--radius-md)',
-            boxShadow: 'var(--shadow-lg)',
-            zIndex: 50,
-            overflow: 'hidden',
-            maxHeight: 320,
-            overflowY: 'auto',
-          }}
-        >
-          {!hasResults && (
-            <div style={{ padding: 'var(--space-4)', fontSize: 'var(--text-sm)', color: 'var(--text-tertiary)' }}>
-              No matches for &ldquo;{query}&rdquo;
-            </div>
+        <div className="search-dropdown">
+          {!hasResults && <div className="search-dropdown-empty">No matches for &ldquo;{query}&rdquo;</div>}
+
+          {residentMatches.length > 0 && (
+            <>
+              <div className="search-dropdown-label">Residents</div>
+              {residentMatches.map((r) => (
+                <button
+                  key={`r-${r.id}`}
+                  type="button"
+                  className="list-row"
+                  onClick={() => {
+                    setOpen(false);
+                    setQuery('');
+                    navigate('/residents', { state: { openResidentId: r.id } });
+                  }}
+                >
+                  <Avatar text={r.name} size="sm" />
+                  <span className="list-row-body">
+                    <span className="list-row-title">{r.name}</span>
+                    <span className="list-row-meta">Resident &middot; {r.status}</span>
+                  </span>
+                </button>
+              ))}
+            </>
           )}
-          {residentMatches.map((r) => (
-            <button
-              key={`r-${r.id}`}
-              className="list-row"
-              style={{ width: '100%', borderRadius: 0 }}
-              onClick={() => {
-                setOpen(false);
-                setQuery('');
-                navigate('/residents', { state: { openResidentId: r.id } });
-              }}
-            >
-              <span className="list-row-icon">
-                <User />
-              </span>
-              <span className="list-row-body">
-                <span className="list-row-title">{r.name}</span>
-                <span className="list-row-meta">Resident &middot; {r.status}</span>
-              </span>
-            </button>
-          ))}
-          {memberMatches.map((m) => (
-            <button
-              key={`m-${m.id}`}
-              className="list-row"
-              style={{ width: '100%', borderRadius: 0 }}
-              onClick={() => {
-                setOpen(false);
-                setQuery('');
-                navigate('/team');
-              }}
-            >
-              <span className="list-row-icon">
-                <UserRound />
-              </span>
-              <span className="list-row-body">
-                <span className="list-row-title">{m.email}</span>
-                <span className="list-row-meta">Team member &middot; {m.role}</span>
-              </span>
-            </button>
-          ))}
+
+          {memberMatches.length > 0 && (
+            <>
+              <div className="search-dropdown-label">Team</div>
+              {memberMatches.map((m) => (
+                <button
+                  key={`m-${m.id}`}
+                  type="button"
+                  className="list-row"
+                  onClick={() => {
+                    setOpen(false);
+                    setQuery('');
+                    navigate('/team');
+                  }}
+                >
+                  <Avatar text={m.name || m.email} size="sm" src={resolveFileUrl(m.profile_photo_url)} />
+                  <span className="list-row-body">
+                    <span className="list-row-title">{m.name || m.email}</span>
+                    <span className="list-row-meta">Team member &middot; {m.role}</span>
+                  </span>
+                </button>
+              ))}
+            </>
+          )}
         </div>
       )}
     </div>

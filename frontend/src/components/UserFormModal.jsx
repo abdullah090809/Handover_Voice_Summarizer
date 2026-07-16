@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import Modal from './Modal.jsx';
 import { Field, IconInput } from './Field.jsx';
-import { Mail, Lock, UserRound } from 'lucide-react';
+import { Mail, Lock, UserRound, AtSign } from 'lucide-react';
 import { userApi, ApiError } from '../lib/api.js';
 
 export default function UserFormModal({ user, onClose, onSaved }) {
   const [name, setName] = useState(user?.name || '');
+  const [username, setUsername] = useState(user?.username || '');
   const [email, setEmail] = useState(user?.email || '');
   const [role, setRole] = useState(user?.role || 'care_worker');
   const [password, setPassword] = useState('');
@@ -16,16 +17,19 @@ export default function UserFormModal({ user, onClose, onSaved }) {
   async function onSubmit(e) {
     e.preventDefault();
     if (!email) return setError('Enter an email address.');
+    if (!/^[a-zA-Z0-9_.]{3,30}$/.test(username)) {
+      return setError('Username must be 3-30 characters, letters, numbers, "." or "_" only.');
+    }
     if (!isEdit && (!password || password.length < 8)) return setError('Password must be at least 8 characters.');
     setSaving(true);
     setError('');
     try {
       if (isEdit) {
-        const payload = { email, role, name: name.trim() || null };
+        const payload = { email, username, role, name: name.trim() || null };
         if (password) payload.password = password;
         await userApi.update(user.id, payload);
       } else {
-        await userApi.create({ email, password, role, name: name.trim() || null });
+        await userApi.create({ email, username, password, role, name: name.trim() || null });
       }
       onSaved();
     } catch (err) {
@@ -54,6 +58,15 @@ export default function UserFormModal({ user, onClose, onSaved }) {
       <form onSubmit={onSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
         <Field label="Full name" htmlFor="user-name" optional>
           <IconInput icon={UserRound} id="user-name" type="text" value={name} onChange={(e) => setName(e.target.value)} />
+        </Field>
+        <Field label="Username" htmlFor="user-username" hint="3-30 characters: letters, numbers, . or _">
+          <IconInput
+            icon={AtSign}
+            id="user-username"
+            type="text"
+            value={username}
+            onChange={(e) => setUsername(e.target.value.trim())}
+          />
         </Field>
         <Field label="Email address" htmlFor="user-email">
           <IconInput icon={Mail} id="user-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />

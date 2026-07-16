@@ -125,9 +125,15 @@
   display: flex;
   align-items: flex-start;
   gap: var(--space-3);
+  width: 100%;
   padding: var(--space-3);
   border-radius: var(--radius-md);
   cursor: pointer;
+  background: none;
+  border: none;
+  text-align: left;
+  font: inherit;
+  color: inherit;
   transition: background var(--duration-fast) var(--ease-standard);
 }
 
@@ -143,14 +149,18 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--surface-muted);
-  color: var(--text-secondary);
+  background: var(--teal-50);
+  color: var(--teal-700);
   margin-top: 1px;
 }
 
 .list-row-icon svg {
   width: 15px;
   height: 15px;
+  stroke: currentColor;
+  fill: none;
+  flex-shrink: 0;
+  display: block;
 }
 
 .list-row-body {

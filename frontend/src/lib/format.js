@@ -67,6 +67,12 @@ export function handoverStatusLabel(s) {
   return map[s] || s;
 }
 
+/** Truncates text to n characters, appending an ellipsis if it was cut. */
+export function truncate(text, n) {
+  if (!text) return '';
+  return text.length > n ? text.slice(0, n).trim() + '…' : text;
+}
+
 /** Converts a datetime-local input value to an ISO string, or null. */
 export function localToIso(localValue) {
   if (!localValue) return null;
@@ -79,4 +85,45 @@ export function isoToLocalInput(iso) {
   const d = new Date(iso);
   const pad = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** Converts a Date (or ISO string) to a value usable in <input type="date">, in local time. */
+export function toDateInputValue(value) {
+  const d = value instanceof Date ? value : new Date(value);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/** "1h 24m" / "45m" style duration from a millisecond span. */
+export function formatDurationHM(ms) {
+  const totalMinutes = Math.max(0, Math.round(ms / 60000));
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  if (h <= 0) return `${m}m`;
+  return `${h}h ${m}m`;
+}
+
+/** "06:02:25" live-clock style elapsed time from a millisecond span. */
+export function formatElapsedClock(ms) {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const pad = (n) => String(n).padStart(2, '0');
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  return `${pad(h)}:${pad(m)}:${pad(s)}`;
+}
+
+/** Day-of-month number, e.g. "17". */
+export function dayNumber(iso) {
+  return String(new Date(iso).getDate());
+}
+
+/** Three-letter weekday abbreviation, e.g. "FRI". */
+export function weekdayAbbrev(iso) {
+  return new Date(iso).toLocaleDateString(undefined, { weekday: 'short' }).toUpperCase();
+}
+
+/** "July 2026" style month + year label. */
+export function monthYearLabel(iso) {
+  return new Date(iso).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
 }

@@ -1,4 +1,6 @@
+from fastapi.encoders import jsonable_encoder
 import logging
+from fastapi.exceptions import RequestValidationError
 import os
 import asyncio
 from contextlib import asynccontextmanager
@@ -34,7 +36,7 @@ os.makedirs("app/static/profile_pictures", exist_ok=True)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # pyrefly: ignore [bad-argument-type]
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
@@ -44,14 +46,12 @@ async def global_exception_handler(request: Request, exc: Exception):
         content={"success": False, "error": "Internal Server Error"}
     )
 
-from fastapi.exceptions import RequestValidationError
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     return JSONResponse(
         status_code=422,
-        content={"success": False, "error": "Validation Error", "details": exc.errors()}
+        content=jsonable_encoder({"success": False, "error": "Validation Error", "details": exc.errors()})
     )
-
 
 from fastapi import HTTPException
 @app.exception_handler(HTTPException)

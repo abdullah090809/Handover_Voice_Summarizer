@@ -501,6 +501,233 @@
   border-top: 1px solid var(--border-subtle);
 }
 
+/* ==========================================================================
+   SHIFTS — clock in/out tracker + session list
+   ========================================================================== */
+.shift-tracker-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-6);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-default);
+  background: var(--surface-card);
+  margin-bottom: var(--space-5);
+}
+
+.shift-tracker-card.is-active {
+  border-color: var(--teal-600);
+  background: linear-gradient(135deg, var(--teal-50), var(--surface-card) 60%);
+}
+
+.shift-tracker-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.shift-tracker-info h2 {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.shift-tracker-info p {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  max-width: 46ch;
+}
+
+.shift-tracker-badge {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.shift-tracker-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.shift-tracker-timer-block {
+  flex-shrink: 0;
+  text-align: center;
+  min-width: 160px;
+}
+
+.shift-tracker-timer {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--teal-700);
+}
+
+.shift-tracker-started {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  margin-top: var(--space-1);
+}
+
+.shift-tracker-btn {
+  flex-shrink: 0;
+}
+
+.shift-range-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.shift-range-field .input {
+  width: auto;
+}
+
+.session-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.session-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+  background: var(--surface-card);
+  min-width: 0;
+}
+
+.session-row.is-active {
+  border-color: var(--teal-600);
+}
+
+.session-day {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  background: var(--surface-hover);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.1;
+}
+
+.session-day-number {
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+.session-day-weekday {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  letter-spacing: 0.04em;
+}
+
+.session-times {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.session-time {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface-hover);
+  white-space: nowrap;
+}
+
+.session-time-in {
+  color: var(--teal-700);
+}
+
+.session-time-out {
+  color: var(--text-tertiary);
+}
+
+.session-duration-block {
+  flex-shrink: 0;
+  text-align: right;
+  min-width: 84px;
+}
+
+.session-duration-label {
+  display: block;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-tertiary);
+}
+
+.session-duration {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: var(--text-base);
+}
+
+.session-duration.is-live {
+  color: var(--teal-700);
+}
+
+@media (max-width: 640px) {
+  .shift-tracker-card {
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    padding: var(--space-4);
+  }
+
+  .shift-tracker-timer-block {
+    min-width: 0;
+    text-align: left;
+    order: 3;
+    flex: 1;
+  }
+
+  .shift-tracker-started {
+    justify-content: flex-start;
+  }
+
+  .shift-tracker-btn {
+    order: 2;
+  }
+
+  .session-row {
+    flex-wrap: wrap;
+  }
+
+  .session-times {
+    order: 3;
+    flex-basis: 100%;
+  }
+
+  .session-duration-block {
+    text-align: left;
+  }
+}
+
 .avatar-lg {
   width: 44px;
   height: 44px;

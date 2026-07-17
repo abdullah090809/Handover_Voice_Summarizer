@@ -16,7 +16,7 @@ import { useAuth } from '../lib/AuthContext.jsx';
 import { handoverApi, residentApi, shiftApi, notificationApi, ApiError } from '../lib/api.js';
 import { UrgencyBadge } from '../components/Badge.jsx';
 import { EmptyState } from '../components/States.jsx';
-import { formatRelative, formatDateTime, firstName } from '../lib/format.js';
+import { formatRelative, formatDateTime, firstName, truncate } from '../lib/format.js';
 import NewHandoverModal from '../components/NewHandoverModal.jsx';
 import HandoverDetailModal from '../components/HandoverDetailModal.jsx';
 
@@ -329,9 +329,4 @@ function SkeletonRows() {
       ))}
     </div>
   );
-}
-
-function truncate(text, n) {
-  if (!text) return '';
-  return text.length > n ? text.slice(0, n).trim() + '…' : text;
 }

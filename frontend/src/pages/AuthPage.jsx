@@ -50,19 +50,28 @@ export default function AuthPage() {
       </aside>
 
       <div className="auth-main">
-        <div className="auth-card">
-          {banner && (
-            <div className={banner.type === 'error' ? 'form-error-banner' : 'form-success-banner'}>
-              {banner.type === 'error' ? <AlertCircle /> : <CheckCircle2 />}
-              <span>{banner.message}</span>
+        <div className="auth-main-inner">
+          <div className="auth-mobile-brand">
+            <div className="auth-side-brand-mark">
+              <Stethoscope size={18} />
             </div>
-          )}
+            <strong>Handover</strong>
+          </div>
 
-          {view === 'login' && <LoginForm goTo={goTo} />}
-          {view === 'register' && <RegisterForm goTo={goTo} />}
-          {view === 'verify' && <VerifyForm goTo={goTo} prefillEmail={prefillEmail} />}
-          {view === 'forgot' && <ForgotForm goTo={goTo} />}
-          {view === 'reset' && <ResetForm goTo={goTo} prefillEmail={prefillEmail} />}
+          <div className="auth-card">
+            {banner && (
+              <div className={banner.type === 'error' ? 'form-error-banner' : 'form-success-banner'}>
+                {banner.type === 'error' ? <AlertCircle /> : <CheckCircle2 />}
+                <span>{banner.message}</span>
+              </div>
+            )}
+
+            {view === 'login' && <LoginForm goTo={goTo} />}
+            {view === 'register' && <RegisterForm goTo={goTo} />}
+            {view === 'verify' && <VerifyForm goTo={goTo} prefillEmail={prefillEmail} />}
+            {view === 'forgot' && <ForgotForm goTo={goTo} />}
+            {view === 'reset' && <ResetForm goTo={goTo} prefillEmail={prefillEmail} />}
+          </div>
         </div>
       </div>
     </div>
@@ -126,7 +135,7 @@ function LoginForm({ goTo }) {
           />
         </Field>
 
-        <div ref={turnstile.containerRef} />
+        <div className="auth-turnstile" ref={turnstile.containerRef} />
 
         {error && (
           <div className="form-error-banner">

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Plus, FileAudio } from 'lucide-react';
 import { handoverApi, residentApi, shiftApi, ApiError } from '../lib/api.js';
 import { useAuth } from '../lib/AuthContext.jsx';
@@ -17,6 +18,7 @@ export default function HandoversPage() {
   const showToast = useToast();
   const confirm = useConfirm();
   const { subscribe } = useLiveUpdates();
+  const location = useLocation();
 
   const [notes, setNotes] = useState(null);
   const [error, setError] = useState(null);
@@ -51,6 +53,15 @@ export default function HandoversPage() {
   useEffect(() => subscribe((event) => {
     if (event.type === 'handover_updated') load();
   }), [subscribe, load]);
+
+  useEffect(() => {
+    if (location.state?.openHandoverId && notes) {
+      const n = notes.find((x) => x.id === location.state.openHandoverId);
+      if (n) setOpenNote(n);
+      window.history.replaceState({}, document.title);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state, notes]);
 
   const residentMap = useMemo(() => Object.fromEntries(residents.map((r) => [r.id, r.name])), [residents]);
 

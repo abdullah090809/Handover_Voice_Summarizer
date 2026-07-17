@@ -431,6 +431,85 @@ body {
    A single, quiet cross-fade for the whole page: fast, and not distracting
    during a clinical handover, never a slide/zoom gimmick.
    ========================================================================== */
+/* ==========================================================================
+   MOBILE SEARCH
+   The inline .topbar-search field is hidden below 1024px (see layout.css).
+   In its place: a dedicated search icon that opens a full-screen overlay —
+   easier to tap into and type in than a field squeezed into a narrow topbar.
+   ========================================================================== */
+.mobile-search-trigger {
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  .mobile-search-trigger {
+    display: flex;
+  }
+}
+
+.mobile-search-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: var(--surface-app);
+  display: flex;
+  flex-direction: column;
+}
+
+.mobile-search-overlay-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-default);
+  background: var(--surface-card);
+  flex-shrink: 0;
+  padding-top: max(var(--space-3), env(safe-area-inset-top, 0px));
+}
+
+.mobile-search-overlay-input-wrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 44px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+  background: var(--surface-app);
+}
+
+.mobile-search-overlay-input-wrap svg {
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+  width: 16px;
+  height: 16px;
+}
+
+.mobile-search-overlay-input-wrap input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  font-size: var(--text-base);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.mobile-search-overlay-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-2);
+}
+
+.mobile-search-hint {
+  padding: var(--space-8) var(--space-6);
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: var(--text-sm);
+}
+
 /* Quick actions: on narrow phones, a single column of compact horizontal
    rows reads better than two squeezed, wrapped-text squares. */
 @media (max-width: 480px) {

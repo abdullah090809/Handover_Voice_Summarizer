@@ -112,7 +112,7 @@ def test_list_users_requires_auth(client):
 
 def test_list_users_pagination(client, manager_auth_headers, db_session):
     for i in range(5):
-        db_session.add(User(email=f"paguser{i}@test.com", password="x", role="care_worker"))
+        db_session.add(User(email=f"paguser{i}@test.com", username=f"paguser{i}", password="x", role="care_worker"))
     db_session.commit()
 
     response = client.get("/users/?skip=0&limit=2", headers=manager_auth_headers)
@@ -149,7 +149,7 @@ def test_get_nonexistent_user_detail_404(client, manager_auth_headers):
 def test_create_user_as_manager_success(client, manager_auth_headers, db_session):
     response = client.post(
         "/users/",
-        json={"email": "newstaff@test.com", "password": "securepass123", "role": "care_worker"},
+        json={"email": "newstaff@test.com", "username": "newstaffuser", "password": "securepass123", "role": "care_worker"},
         headers=manager_auth_headers,
     )
 
@@ -166,7 +166,7 @@ def test_create_user_as_manager_success(client, manager_auth_headers, db_session
 def test_create_user_default_role_is_care_worker(client, manager_auth_headers):
     response = client.post(
         "/users/",
-        json={"email": "defaultrole@test.com", "password": "securepass123"},
+        json={"email": "defaultrole@test.com", "username": "defaultroleuser", "password": "securepass123"},
         headers=manager_auth_headers,
     )
     assert response.status_code == 201
@@ -176,7 +176,7 @@ def test_create_user_default_role_is_care_worker(client, manager_auth_headers):
 def test_create_user_manager_role_success(client, manager_auth_headers):
     response = client.post(
         "/users/",
-        json={"email": "newmanager@test.com", "password": "securepass123", "role": "manager"},
+        json={"email": "newmanager@test.com", "username": "newmanageruser", "password": "securepass123", "role": "manager"},
         headers=manager_auth_headers,
     )
     assert response.status_code == 201
@@ -186,7 +186,7 @@ def test_create_user_manager_role_success(client, manager_auth_headers):
 def test_create_user_invalid_role_rejected(client, manager_auth_headers):
     response = client.post(
         "/users/",
-        json={"email": "badrole@test.com", "password": "securepass123", "role": "superadmin"},
+        json={"email": "badrole@test.com", "username": "badroleuser", "password": "securepass123", "role": "superadmin"},
         headers=manager_auth_headers,
     )
     assert response.status_code == 422
@@ -195,7 +195,7 @@ def test_create_user_invalid_role_rejected(client, manager_auth_headers):
 def test_create_user_duplicate_email_fails(client, manager_auth_headers, test_user):
     response = client.post(
         "/users/",
-        json={"email": test_user.email, "password": "securepass123"},
+        json={"email": test_user.email, "username": "dupeemailuser", "password": "securepass123"},
         headers=manager_auth_headers,
     )
     assert response.status_code == 400
@@ -205,7 +205,7 @@ def test_create_user_duplicate_email_fails(client, manager_auth_headers, test_us
 def test_create_user_as_worker_forbidden(client, worker_auth_headers):
     response = client.post(
         "/users/",
-        json={"email": "sneaky@test.com", "password": "securepass123"},
+        json={"email": "sneaky@test.com", "username": "sneakyuser", "password": "securepass123"},
         headers=worker_auth_headers,
     )
     assert response.status_code == 403
@@ -213,7 +213,7 @@ def test_create_user_as_worker_forbidden(client, worker_auth_headers):
 
 def test_create_user_requires_auth(client):
     response = client.post(
-        "/users/", json={"email": "noauth@test.com", "password": "securepass123"}
+        "/users/", json={"email": "noauth@test.com", "username": "noauthuser", "password": "securepass123"}
     )
     assert response.status_code == 401
 

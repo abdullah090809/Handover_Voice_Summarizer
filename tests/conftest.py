@@ -92,6 +92,7 @@ def test_resident(db_session):
 def test_user(db_session):
     user = User(
         email="worker@test.com",
+        username="worker1",
         password=hash_password("password123"),
         role="care_worker",
     )
@@ -117,6 +118,7 @@ def test_shift(db_session, test_user):
 def test_manager(db_session):
     manager = User(
         email="manager@test.com",
+        username="manager1",
         password=hash_password("password123"),
         role="manager",
     )
@@ -146,10 +148,14 @@ def manager_auth_headers(manager_token):
     return {"Authorization": f"Bearer {manager_token}"}
 
 
-def make_worker(db_session, email="otherworker@test.com"):
+def make_worker(db_session, email="otherworker@test.com", username=None):
     """Helper for tests that need a second, independent care worker."""
+    if username is None:
+        # Derive a unique, pattern-valid username from the email's local part.
+        username = email.split("@", 1)[0].replace(".", "_")
     worker = User(
         email=email,
+        username=username,
         password=hash_password("password123"),
         role="care_worker",
     )

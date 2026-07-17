@@ -16,7 +16,7 @@ def test_register_creates_pending_user(client, db_session):
     with patch("app.routers.auth.send_verification_email") as mock_send:
         response = client.post(
             "/register",
-            json={"email": "newuser@test.com", "password": "securepass123"},
+            json={"email": "newuser@test.com", "username": "newuser1", "password": "securepass123"},
         )
 
     assert response.status_code == 201
@@ -34,7 +34,7 @@ def test_register_creates_pending_user(client, db_session):
 def test_register_duplicate_verified_email_fails(client, test_user):
     response = client.post(
         "/register",
-        json={"email": test_user.email, "password": "securepass123"},
+        json={"email": test_user.email, "username": "dupeusername", "password": "securepass123"},
     )
 
     assert response.status_code == 400
@@ -43,14 +43,14 @@ def test_register_duplicate_verified_email_fails(client, test_user):
 
 def test_register_existing_pending_user_reissues_otp(client, db_session):
     with patch("app.routers.auth.send_verification_email"):
-        client.post("/register", json={"email": "dupe@test.com", "password": "securepass123"})
+        client.post("/register", json={"email": "dupe@test.com", "username": "dupeuser", "password": "securepass123"})
 
     first_pending = db_session.query(PendingUser).filter(PendingUser.email == "dupe@test.com").first()
     first_otp = first_pending.otp_code
 
     with patch("app.routers.auth.send_verification_email") as mock_send:
         response = client.post(
-            "/register", json={"email": "dupe@test.com", "password": "newpassword456"}
+            "/register", json={"email": "dupe@test.com", "username": "dupeuser2", "password": "newpassword456"}
         )
 
     assert response.status_code == 201
@@ -66,7 +66,7 @@ def test_register_email_send_failure_does_not_break_request(client):
     with patch("app.routers.auth.send_verification_email", side_effect=Exception("SMTP down")):
         response = client.post(
             "/register",
-            json={"email": "resilient@test.com", "password": "securepass123"},
+            json={"email": "resilient@test.com", "username": "resilientuser", "password": "securepass123"},
         )
 
     assert response.status_code == 201
@@ -75,7 +75,7 @@ def test_register_email_send_failure_does_not_break_request(client):
 def test_register_invalid_email_format_rejected(client):
     response = client.post(
         "/register",
-        json={"email": "not-an-email", "password": "securepass123"},
+        json={"email": "not-an-email", "username": "notanemailuser", "password": "securepass123"},
     )
     assert response.status_code == 422
 
@@ -83,7 +83,7 @@ def test_register_invalid_email_format_rejected(client):
 def test_register_password_too_short_rejected(client):
     response = client.post(
         "/register",
-        json={"email": "shortpass@test.com", "password": "short"},
+        json={"email": "shortpass@test.com", "username": "shortpassuser", "password": "short"},
     )
     assert response.status_code == 422
 
@@ -91,7 +91,7 @@ def test_register_password_too_short_rejected(client):
 def test_register_password_too_long_rejected(client):
     response = client.post(
         "/register",
-        json={"email": "longpass@test.com", "password": "a" * 73},
+        json={"email": "longpass@test.com", "username": "longpassuser", "password": "a" * 73},
     )
     assert response.status_code == 422
 
@@ -106,13 +106,13 @@ def test_register_otp_daily_limit_enforced(client, db_session):
         for _ in range(5):
             resp = client.post(
                 "/register",
-                json={"email": "ratelimited@test.com", "password": "securepass123"},
+                json={"email": "ratelimited@test.com", "username": "ratelimiteduser", "password": "securepass123"},
             )
             assert resp.status_code == 201
 
         sixth = client.post(
             "/register",
-            json={"email": "ratelimited@test.com", "password": "securepass123"},
+            json={"email": "ratelimited@test.com", "username": "ratelimiteduser", "password": "securepass123"},
         )
 
     assert sixth.status_code == 429
@@ -120,7 +120,7 @@ def test_register_otp_daily_limit_enforced(client, db_session):
 
 def test_register_otp_limit_resets_after_24_hours(client, db_session):
     with patch("app.routers.auth.send_verification_email"):
-        client.post("/register", json={"email": "reset24h@test.com", "password": "securepass123"})
+        client.post("/register", json={"email": "reset24h@test.com", "username": "reset24huser", "password": "securepass123"})
 
     pending = db_session.query(PendingUser).filter(PendingUser.email == "reset24h@test.com").first()
     pending.otp_request_count = 5
@@ -129,7 +129,7 @@ def test_register_otp_limit_resets_after_24_hours(client, db_session):
 
     with patch("app.routers.auth.send_verification_email"):
         response = client.post(
-            "/register", json={"email": "reset24h@test.com", "password": "securepass123"}
+            "/register", json={"email": "reset24h@test.com", "username": "reset24huser", "password": "securepass123"}
         )
 
     assert response.status_code == 201
@@ -141,7 +141,7 @@ def test_register_otp_limit_resets_after_24_hours(client, db_session):
 
 def test_resend_otp_success(client, db_session):
     with patch("app.routers.auth.send_verification_email"):
-        client.post("/register", json={"email": "resend@test.com", "password": "securepass123"})
+        client.post("/register", json={"email": "resend@test.com", "username": "resenduser", "password": "securepass123"})
 
     pending = db_session.query(PendingUser).filter(PendingUser.email == "resend@test.com").first()
     old_otp = pending.otp_code
@@ -171,7 +171,7 @@ def test_resend_otp_invalid_email_format_rejected(client):
 
 def test_resend_otp_rate_limited_after_five_requests(client, db_session):
     with patch("app.routers.auth.send_verification_email"):
-        client.post("/register", json={"email": "resendlimit@test.com", "password": "securepass123"})
+        client.post("/register", json={"email": "resendlimit@test.com", "username": "resendlimituser", "password": "securepass123"})
 
         for _ in range(4):
             resp = client.post("/resend-otp", json={"email": "resendlimit@test.com"})
@@ -189,7 +189,7 @@ def test_resend_otp_rate_limited_after_five_requests(client, db_session):
 
 def test_verify_with_correct_otp_creates_user(client, db_session):
     with patch("app.routers.auth.send_verification_email"):
-        client.post("/register", json={"email": "verifyme@test.com", "password": "securepass123"})
+        client.post("/register", json={"email": "verifyme@test.com", "username": "verifymeuser", "password": "securepass123"})
 
     pending = db_session.query(PendingUser).filter(PendingUser.email == "verifyme@test.com").first()
     otp_code = pending.otp_code
@@ -199,6 +199,7 @@ def test_verify_with_correct_otp_creates_user(client, db_session):
     assert response.status_code == 200
     body = response.json()
     assert body["email"] == "verifyme@test.com"
+    assert body["username"] == "verifymeuser"
     assert body["role"] == "care_worker"
     assert "id" in body
     assert "password" not in body
@@ -212,7 +213,7 @@ def test_verify_with_correct_otp_creates_user(client, db_session):
 
 def test_verify_with_wrong_otp_fails(client, db_session):
     with patch("app.routers.auth.send_verification_email"):
-        client.post("/register", json={"email": "wrongotp@test.com", "password": "securepass123"})
+        client.post("/register", json={"email": "wrongotp@test.com", "username": "wrongotpuser", "password": "securepass123"})
 
     response = client.post("/verify", json={"email": "wrongotp@test.com", "otp_code": "000000"})
 
@@ -228,7 +229,7 @@ def test_verify_no_pending_registration_404(client):
 
 def test_verify_expired_otp_fails(client, db_session):
     with patch("app.routers.auth.send_verification_email"):
-        client.post("/register", json={"email": "expired@test.com", "password": "securepass123"})
+        client.post("/register", json={"email": "expired@test.com", "username": "expireduser", "password": "securepass123"})
 
     pending = db_session.query(PendingUser).filter(PendingUser.email == "expired@test.com").first()
     pending.otp_expires_at = datetime.now(timezone.utc) - timedelta(minutes=1)
@@ -263,6 +264,7 @@ def test_verify_does_not_allow_duplicate_email_if_already_registered(client, db_
     visible change rather than a silent regression."""
     pending = PendingUser(
         email=test_user.email,
+        username="raceconditionuser",
         password="hashedpw",
         otp_code="654321",
         otp_expires_at=datetime.now(timezone.utc) + timedelta(minutes=10),

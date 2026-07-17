@@ -355,7 +355,12 @@ def test_transcribe_high_urgency_emails_all_managers(client, worker_auth_headers
     from app.models.user import User
     from app.cores.security import hash_password
 
-    second_manager = User(email="manager2@test.com", password=hash_password("password123"), role="manager")
+    second_manager = User(
+        email="manager2@test.com",
+        username="manager2",
+        password=hash_password("password123"),
+        role="manager",
+    )
     db_session.add(second_manager)
     db_session.commit()
 

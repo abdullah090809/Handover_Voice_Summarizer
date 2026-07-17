@@ -5,6 +5,7 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: var(--space-4);
+  min-width: 0;
 }
 
 .stat-card {
@@ -15,6 +16,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  min-width: 0;
 }
 
 .stat-card-top {
@@ -72,9 +74,13 @@
 
 .dash-grid {
   display: grid;
-  grid-template-columns: 1.6fr 1fr;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
   gap: var(--space-5);
   align-items: start;
+}
+
+.dash-grid>div {
+  min-width: 0;
 }
 
 @media (max-width: 980px) {
@@ -197,7 +203,7 @@
 
 .quick-actions {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-3);
 }
 
@@ -212,6 +218,8 @@
   background: var(--surface-card);
   cursor: pointer;
   text-align: left;
+  min-width: 0;
+  width: 100%;
   transition: border-color var(--duration-fast) var(--ease-standard), background var(--duration-fast) var(--ease-standard);
 }
 
@@ -228,6 +236,13 @@
 
 .quick-action-btn strong {
   font-size: var(--text-sm);
+}
+
+.quick-action-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
 .quick-action-btn span {

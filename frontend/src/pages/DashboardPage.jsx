@@ -206,41 +206,53 @@ export default function DashboardPage() {
                 {!isManager && (
                   <button className="quick-action-btn" onClick={() => setShowNewModal(true)}>
                     <Plus />
-                    <strong>New handover</strong>
-                    <span>Record or upload audio</span>
+                    <span className="quick-action-text">
+                      <strong>New handover</strong>
+                      <span>Record or upload audio</span>
+                    </span>
                   </button>
                 )}
                 {isManager && (
                   <button className="quick-action-btn" onClick={() => navigate('/residents', { viewTransition: true })}>
                     <Users />
-                    <strong>Add resident</strong>
-                    <span>Register a new resident</span>
+                    <span className="quick-action-text">
+                      <strong>Add resident</strong>
+                      <span>Register a new resident</span>
+                    </span>
                   </button>
                 )}
                 {isManager && (
                   <button className="quick-action-btn" onClick={() => navigate('/team', { viewTransition: true })}>
                     <UserCog />
-                    <strong>Manage team</strong>
-                    <span>Add or update staff</span>
+                    <span className="quick-action-text">
+                      <strong>Manage team</strong>
+                      <span>Add or update staff</span>
+                    </span>
                   </button>
                 )}
                 {!isManager && (
                   <button className="quick-action-btn" onClick={() => navigate('/shifts', { viewTransition: true })}>
                     <Clock3 />
-                    <strong>Log a shift</strong>
-                    <span>Record your working hours</span>
+                    <span className="quick-action-text">
+                      <strong>Log a shift</strong>
+                      <span>Record your working hours</span>
+                    </span>
                   </button>
                 )}
                 <button className="quick-action-btn" onClick={() => navigate('/residents', { viewTransition: true })}>
                   <Users />
-                  <strong>View residents</strong>
-                  <span>{activeResidents.length} active</span>
+                  <span className="quick-action-text">
+                    <strong>View residents</strong>
+                    <span>{activeResidents.length} active</span>
+                  </span>
                 </button>
                 {isManager && (
                   <button className="quick-action-btn" onClick={() => navigate('/notifications', { viewTransition: true })}>
                     <Bell />
-                    <strong>Review alerts</strong>
-                    <span>{unreadAlerts} unread</span>
+                    <span className="quick-action-text">
+                      <strong>Review alerts</strong>
+                      <span>{unreadAlerts} unread</span>
+                    </span>
                   </button>
                 )}
               </div>

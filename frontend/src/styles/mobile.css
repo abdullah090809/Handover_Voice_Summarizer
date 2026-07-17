@@ -38,6 +38,38 @@
   .input {
     min-height: 44px;
   }
+
+  /* `.stat-row` normally uses `repeat(auto-fit, minmax(200px, 1fr))`, which
+     on a ~360-480px phone only has room for a single 200px+ column — so all
+     4 dashboard stat cards stack full-width, one per row, and everything
+     below (Recent handovers, Residents needing attention, Quick actions)
+     ends up 3-4 screens down before you reach it. Force a 2-column grid
+     with a smaller card instead, so the stat row takes about half the
+     vertical space. */
+  .stat-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+  }
+
+  .stat-card {
+    padding: var(--space-4);
+    gap: var(--space-1);
+    min-width: 0;
+  }
+
+  .stat-card strong {
+    font-size: var(--text-xl);
+  }
+}
+
+/* Belt-and-braces: nothing in this app should ever need horizontal
+   scrolling on a phone. If any element (a long unbroken string, a stray
+   fixed width, etc) ever pushes past the viewport edge, clip it here
+   instead of introducing a page-wide horizontal scrollbar. */
+html,
+body {
+  overflow-x: hidden;
+  max-width: 100vw;
 }
 
 /* ==========================================================================
@@ -385,7 +417,7 @@
     display: none;
   }
 
-  table.data-table td[data-label='Team member'] > div {
+  table.data-table td[data-label='Team member']>div {
     width: 100%;
   }
 }
@@ -399,6 +431,38 @@
    A single, quiet cross-fade for the whole page: fast, and not distracting
    during a clinical handover, never a slide/zoom gimmick.
    ========================================================================== */
+/* Quick actions: on narrow phones, a single column of compact horizontal
+   rows reads better than two squeezed, wrapped-text squares. */
+@media (max-width: 480px) {
+  .quick-actions {
+    grid-template-columns: 1fr;
+    gap: var(--space-2);
+  }
+
+  .quick-action-btn {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .quick-action-btn svg {
+    flex-shrink: 0;
+  }
+
+  .quick-action-text {
+    flex: 1;
+  }
+
+  .quick-action-text strong,
+  .quick-action-text span {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
 ::view-transition-old(root),
 ::view-transition-new(root) {
   animation-duration: var(--duration-slow);
@@ -433,7 +497,41 @@
   }
 }
 
+/* The sidebar, topbar, and bottom tab bar are part of AppShell and never
+   unmount between route changes — only <Outlet/> content does. Without this,
+   they get baked into the single full-page "root" snapshot above, so their
+   pixels visibly flash/flicker on every navigation even though nothing in
+   them actually changed. Giving each a stable view-transition-name pulls
+   them out of that root snapshot into their own persistent layer, and since
+   old === new for these elements, disabling their animation makes them
+   stay put with zero flicker while the content area still crossfades. */
+.sidebar {
+  view-transition-name: app-sidebar;
+}
+
+.topbar {
+  view-transition-name: app-topbar;
+}
+
+.mobile-tabbar {
+  view-transition-name: app-tabbar;
+}
+
+::view-transition-group(app-sidebar),
+::view-transition-group(app-topbar),
+::view-transition-group(app-tabbar),
+::view-transition-old(app-sidebar),
+::view-transition-new(app-sidebar),
+::view-transition-old(app-topbar),
+::view-transition-new(app-topbar),
+::view-transition-old(app-tabbar),
+::view-transition-new(app-tabbar) {
+  animation: none !important;
+  mix-blend-mode: normal;
+}
+
 @media (prefers-reduced-motion: reduce) {
+
   ::view-transition-group(*),
   ::view-transition-old(*),
   ::view-transition-new(*) {

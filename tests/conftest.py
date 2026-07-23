@@ -83,7 +83,7 @@ def db_session():
 
 
 @pytest.fixture()
-def client(db_session):
+def client(db_session, monkeypatch):
     def override_get_db():
         db_session.expire_all()  # avoid stale identity-map reads across requests
         try:
@@ -92,6 +92,18 @@ def client(db_session):
             pass
 
     app.dependency_overrides[get_db] = override_get_db
+
+    # seed_manager_account() runs on every app startup (see app.main's
+    # lifespan) and — unlike everything else — talks to app.cores.database's
+    # real engine directly instead of going through the overridden get_db
+    # dependency, so it isn't confined to the isolated per-test database
+    # above. Left alone, it inserts an extra "manager" row before every
+    # test, which then shows up in any endpoint that queries
+    # User.role == "manager" (e.g. urgent-handover email fan-out) and
+    # throws off exact call-count assertions. It only exists to bootstrap
+    # a real deployment, so it's a no-op for tests.
+    monkeypatch.setattr("app.main.seed_manager_account", lambda: None)
+
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()

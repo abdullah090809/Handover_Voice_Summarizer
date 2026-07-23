@@ -36,9 +36,15 @@ _UPLOAD_CHUNK_SIZE = 1024 * 1024  # 1 MB
 
 # Shared volume mounted into both the api and celery_worker containers —
 # the OS-default temp dir is private per-container, which breaks Celery
-# from being able to read a file the api container wrote.
-_UPLOAD_DIR = "/app/audio_uploads"
-os.makedirs(_UPLOAD_DIR, exist_ok=True)
+# from being able to read a file the api container wrote. Override via
+# AUDIO_UPLOAD_DIR for environments (CI, local dev outside Docker) where
+# /app doesn't exist or isn't writable by the running user.
+_UPLOAD_DIR = os.environ.get("AUDIO_UPLOAD_DIR", "/app/audio_uploads")
+try:
+    os.makedirs(_UPLOAD_DIR, exist_ok=True)
+except (PermissionError, OSError):
+    _UPLOAD_DIR = os.path.join(tempfile.gettempdir(), "audio_uploads")
+    os.makedirs(_UPLOAD_DIR, exist_ok=True)
 
 
 def _save_upload_to_tempfile(audio: UploadFile) -> str:

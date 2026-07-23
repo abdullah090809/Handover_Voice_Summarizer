@@ -447,11 +447,15 @@ body {
   }
 
   /* The "Team member" cell holds an avatar + name row, not a simple value —
-     let it take the full row width instead of splitting label/value. */
+     let it take the full row width instead of splitting label/value. Also
+     override the generic td's text-align: right here directly (not just on
+     the inner row div) so the name/email can't inherit right-alignment
+     regardless of stylesheet load order. */
   table.data-table td[data-label='Team member'] {
     justify-content: flex-start;
     flex-direction: column;
     align-items: flex-start;
+    text-align: left;
   }
 
   table.data-table td[data-label='Team member']::before {
@@ -460,6 +464,16 @@ body {
 
   table.data-table td[data-label='Team member']>div {
     width: 100%;
+  }
+
+  /* The actions cell has no label (data-label="") and only a single button
+     child, so it doesn't get the label/value pairing the rows above it have
+     — left unstyled it ends up sitting in the middle of the card instead of
+     reading as a row action like it does on desktop. Pin it to the right,
+     matching convention, and give it a divider so it reads as its own row. */
+  table.data-table td[data-label=''] {
+    justify-content: flex-end;
+    border-top: 1px solid var(--border-subtle);
   }
 }
 

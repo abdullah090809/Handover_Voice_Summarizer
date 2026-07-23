@@ -982,17 +982,21 @@
 .profile-hero-info {
   position: relative;
   z-index: 1;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .profile-hero-info h2 {
   color: var(--white);
   font-size: var(--text-xl);
+  overflow-wrap: anywhere;
 }
 
 .profile-hero-info p {
   color: var(--ink-300);
   font-size: var(--text-sm);
   margin-top: 2px;
+  overflow-wrap: anywhere;
 }
 
 .profile-hero-info .tag-strip {

@@ -103,67 +103,67 @@ export default function TeamPage() {
       {users !== null && users.length > 0 && (
         <>
           <div className="table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Team member</th>
-                <th>Role</th>
-                <th>Joined</th>
-                <th aria-label="Actions" />
-              </tr>
-            </thead>
-            <tbody>
-              {pageItems.map((u) => (
-                <tr key={u.id}>
-                  <td data-label="Team member">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-                      <Avatar text={displayName(u)} size="sm" />
-                      <div>
-                        <div style={{ fontWeight: u.name ? 600 : 400 }}>{displayName(u)}</div>
-                        {u.name && <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' }}>{u.email}</div>}
-                      </div>
-                      {u.id === me.id && <span className="badge badge-info">You</span>}
-                    </div>
-                  </td>
-                  <td data-label="Role">
-                    <RoleBadge role={u.role} />
-                  </td>
-                  <td data-label="Joined" style={{ color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)' }}>{formatDate(u.created_at)}</td>
-                  <td data-label="" style={{ textAlign: 'right' }}>
-                    <button
-                      className="icon-btn"
-                      aria-label="Actions"
-                      data-menu-trigger
-                      onClick={(e) => {
-                        if (openMenu?.userId === u.id) {
-                          setOpenMenu(null);
-                        } else {
-                          const rect = e.currentTarget.getBoundingClientRect();
-                          setOpenMenu({ userId: u.id, rect });
-                        }
-                      }}
-                    >
-                      <MoreVertical size={16} />
-                    </button>
-                    {openMenu?.userId === u.id && (
-                      <ActionMenu
-                        anchorRect={openMenu.rect}
-                        onClose={() => setOpenMenu(null)}
-                        items={[
-                          { label: 'Edit', icon: Pencil, onClick: () => setFormUser(u) },
-                          { label: 'Reset password', icon: KeyRound, onClick: () => handleResetPassword(u) },
-                          u.role === 'deactivated'
-                            ? { label: 'Reactivate', icon: CheckCircle2, onClick: () => toggleActive(u), disabled: u.id === me.id }
-                            : { label: 'Deactivate', icon: Ban, onClick: () => toggleActive(u), disabled: u.id === me.id },
-                          { label: 'Delete', icon: Trash2, onClick: () => handleDelete(u), danger: true, disabled: u.id === me.id },
-                        ]}
-                      />
-                    )}
-                  </td>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Team member</th>
+                  <th>Role</th>
+                  <th>Joined</th>
+                  <th aria-label="Actions" />
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {pageItems.map((u) => (
+                  <tr key={u.id}>
+                    <td data-label="Team member">
+                      <div className="team-member-row">
+                        <Avatar text={displayName(u)} size="sm" />
+                        <div className="team-member-info">
+                          <div className="team-member-name" style={{ fontWeight: u.name ? 600 : 400 }}>{displayName(u)}</div>
+                          {u.name && <div className="team-member-email" style={{ fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' }}>{u.email}</div>}
+                        </div>
+                        {u.id === me.id && <span className="badge badge-info team-member-you">You</span>}
+                      </div>
+                    </td>
+                    <td data-label="Role">
+                      <RoleBadge role={u.role} />
+                    </td>
+                    <td data-label="Joined" style={{ color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)' }}>{formatDate(u.created_at)}</td>
+                    <td data-label="" style={{ textAlign: 'right' }}>
+                      <button
+                        className="icon-btn"
+                        aria-label="Actions"
+                        data-menu-trigger
+                        onClick={(e) => {
+                          if (openMenu?.userId === u.id) {
+                            setOpenMenu(null);
+                          } else {
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            setOpenMenu({ userId: u.id, rect });
+                          }
+                        }}
+                      >
+                        <MoreVertical size={16} />
+                      </button>
+                      {openMenu?.userId === u.id && (
+                        <ActionMenu
+                          anchorRect={openMenu.rect}
+                          onClose={() => setOpenMenu(null)}
+                          items={[
+                            { label: 'Edit', icon: Pencil, onClick: () => setFormUser(u) },
+                            { label: 'Reset password', icon: KeyRound, onClick: () => handleResetPassword(u) },
+                            u.role === 'deactivated'
+                              ? { label: 'Reactivate', icon: CheckCircle2, onClick: () => toggleActive(u), disabled: u.id === me.id }
+                              : { label: 'Deactivate', icon: Ban, onClick: () => toggleActive(u), disabled: u.id === me.id },
+                            { label: 'Delete', icon: Trash2, onClick: () => handleDelete(u), danger: true, disabled: u.id === me.id },
+                          ]}
+                        />
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
           <Pagination page={page} pageCount={pageCount} total={total} pageSize={10} onPageChange={setPage} itemLabel="team members" />
         </>

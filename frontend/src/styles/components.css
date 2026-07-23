@@ -997,6 +997,34 @@ table.data-table {
   flex-shrink: 0;
 }
 
+/* Team list row: avatar + name/email + optional "You" badge. Without
+   min-width: 0 on the text column, a long email can't shrink and pushes the
+   badge past the row's — and on mobile, the card's — right edge instead of
+   staying inside it. */
+.team-member-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  width: 100%;
+}
+
+.team-member-info {
+  min-width: 0;
+  flex: 1;
+}
+
+.team-member-name,
+.team-member-email {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.team-member-you {
+  flex-shrink: 0;
+}
+
 .tag-strip {
   display: flex;
   flex-wrap: wrap;

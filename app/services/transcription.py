@@ -7,7 +7,6 @@ import whisper
 logger = logging.getLogger(__name__)
 
 _model = None
-
 _model_lock = threading.Lock()
 
 _MODEL_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "whisper_models")

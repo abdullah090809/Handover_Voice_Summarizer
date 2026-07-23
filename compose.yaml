@@ -16,20 +16,62 @@ services:
       timeout: 5s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   api:
     build: .
     restart: always
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     env_file:
       - .env
     environment:
       DATABASE_HOSTNAME: db
+      REDIS_HOST: redis
     ports:
       - "8000:8000"
+    volumes:
+      - audio_uploads:/app/audio_uploads
     command: >
       sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    develop:
+      watch:
+        - action: sync
+          path: ./app
+          target: /app/app
+        - action: rebuild
+          path: ./requirements.txt
+
+  celery_worker:
+    build: .
+    restart: always
+    depends_on:
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DATABASE_HOSTNAME: db
+      REDIS_HOST: redis
+    volumes:
+      - audio_uploads:/app/audio_uploads
+    command: celery -A app.cores.celery_app.celery_app worker --loglevel=info --pool=solo
     develop:
       watch:
         - action: sync
@@ -57,3 +99,5 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:
+  audio_uploads:

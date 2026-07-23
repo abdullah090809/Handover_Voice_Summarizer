@@ -39,6 +39,19 @@
     min-height: 44px;
   }
 
+  /* Modal footers can carry 3-4 buttons (e.g. Delete note / .txt / .json /
+     Close, or Remove resident / Rename / Close). In a single non-wrapping
+     row that's packed to the right, the leftmost button(s) get pushed past
+     the left edge of the screen and clipped. Stack them full-width instead
+     — guaranteed to fit regardless of how many buttons a given modal has. */
+  .modal-footer {
+    flex-direction: column;
+  }
+
+  .modal-footer .btn {
+    width: 100%;
+  }
+
   /* `.stat-row` normally uses `repeat(auto-fit, minmax(200px, 1fr))`, which
      on a ~360-480px phone only has room for a single 200px+ column — so all
      4 dashboard stat cards stack full-width, one per row, and everything
@@ -55,6 +68,14 @@
     padding: var(--space-4);
     gap: var(--space-1);
     min-width: 0;
+  }
+
+  /* Opt-in modifier: some pages (Shifts) read better as full-width stacked
+     cards on mobile rather than the 2-up grid above — bigger, easier to
+     read at a glance, worth the extra scroll on a page that's short
+     otherwise. Add className="stat-row stat-row-stacked" to use it. */
+  .stat-row-stacked {
+    grid-template-columns: 1fr;
   }
 
   .stat-card strong {
@@ -257,6 +278,26 @@ body {
 
   .topbar-menu-btn {
     display: none;
+  }
+
+  /* Every page already renders its own prominent .page-header (h1 +
+     subtitle) as the first thing in its content — and the active bottom-nav
+     tab already shows which section you're in. Repeating the same title a
+     third time, tiny, in the topbar just adds clutter and eats vertical
+     space. Keep the topbar to a compact brand mark + search + alerts. */
+  .topbar-titles {
+    display: none;
+  }
+
+  .topbar-mobile-brand {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-right: auto;
+  }
+
+  .topbar {
+    justify-content: flex-start;
   }
 
   .mobile-tabbar-item {

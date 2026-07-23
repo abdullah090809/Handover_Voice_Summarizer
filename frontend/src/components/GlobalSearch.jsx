@@ -188,7 +188,7 @@ export default function GlobalSearch() {
         <Search />
         <input
           type="text"
-          placeholder="Search residents, team, or handover #ID"
+          placeholder="Search residents, team, handovers…"
           value={query}
           onFocus={() => {
             setOpen(true);
@@ -232,7 +232,7 @@ export default function GlobalSearch() {
               <input
                 type="text"
                 autoFocus
-                placeholder="Search residents, team, or handover #ID"
+                placeholder="Search residents, team, handovers…"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 aria-label="Search residents, team members, or a handover by ID"

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Outlet, useLocation, Link } from 'react-router-dom';
-import { Menu, Bell } from 'lucide-react';
+import { Menu, Bell, Stethoscope } from 'lucide-react';
 import Sidebar from './Sidebar.jsx';
 import BottomNav from './BottomNav.jsx';
 import GlobalSearch from './GlobalSearch.jsx';
@@ -40,6 +40,12 @@ export default function AppShell() {
           >
             <Menu size={20} />
           </button>
+          <div className="topbar-mobile-brand">
+            <div className="topbar-mobile-brand-mark">
+              <Stethoscope size={15} />
+            </div>
+            <strong>Handover</strong>
+          </div>
           <div className="topbar-titles">
             <div className="breadcrumbs">
               <span>Handover</span>

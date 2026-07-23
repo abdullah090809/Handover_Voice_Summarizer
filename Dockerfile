@@ -5,7 +5,7 @@ FROM python:${PYTHON_VERSION} AS builder
 WORKDIR /app
 RUN --mount=type=cache,target=/root/.cache/pip \
     --mount=type=bind,source=requirements.txt,target=requirements.txt \
-    python -m pip install --user -r requirements.txt
+    python -m pip install --user --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt
 
 FROM python:${PYTHON_VERSION} AS base
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -13,6 +13,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PATH=/home/appuser/.local/bin:$PATH
 
 WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
 
 ARG UID=10001
 RUN adduser \
@@ -23,10 +27,9 @@ RUN adduser \
     --uid "${UID}" \
     appuser
 
-COPY --from=builder /root/.local /home/appuser/.local
+RUN mkdir -p /app/audio_uploads && chown -R appuser:appuser /app/audio_uploads
+COPY --from=builder --chown=appuser:appuser /root/.local /home/appuser/.local
 COPY --chown=appuser:appuser . .
-
-RUN chown -R appuser:appuser /home/appuser
 
 USER appuser
 

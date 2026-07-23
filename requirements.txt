@@ -102,3 +102,5 @@ uvicorn==0.50.2
 watchfiles==1.2.0
 websockets==16.0
 wrapt==2.2.2
+redis==5.0.1
+celery==5.3.6

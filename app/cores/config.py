@@ -17,10 +17,15 @@ class Settings(BaseSettings):
     gemini_api_key: str
     resend_api_key: str
     turnstile_secret_key: str
+    seed_manager_email: str
+    seed_manager_password: str
+    seed_manager_username: str = "manager"
+    redis_host: str = "redis"
+    redis_port: int = 6379
 
     class Config:
         env_file = _ENV_FILE
         env_file_encoding = "utf-8"
 
 
-settings = Settings()  # type: ignore
+settings = Settings()

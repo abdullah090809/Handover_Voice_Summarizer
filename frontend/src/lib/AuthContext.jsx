@@ -33,7 +33,7 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     if (getToken()) {
-      loadUser().catch(() => {});
+      loadUser().catch(() => { });
     } else {
       setStatus('anon');
     }
@@ -41,9 +41,9 @@ export function AuthProvider({ children }) {
   }, []);
 
   const login = useCallback(
-    async (email, password, turnstileToken) => {
+    async (email, password, turnstileToken, remember = true) => {
       const data = await authApi.login(email, password, turnstileToken);
-      setToken(data.access_token);
+      setToken(data.access_token, remember);
       await loadUser();
     },
     [loadUser]

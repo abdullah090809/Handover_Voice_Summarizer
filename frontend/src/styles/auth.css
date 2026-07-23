@@ -1,32 +1,36 @@
 /* ==========================================================================
    AUTH — sign in / register / verify / reset
+   Single centered card, dark themed. No split-screen marketing panel —
+   the same layout at every viewport width, which keeps it inherently
+   mobile-friendly rather than needing a separate mobile fallback.
    ========================================================================== */
-.auth-screen {
+.auth-screen-centered {
   min-height: 100dvh;
-  display: grid;
-  grid-template-columns: minmax(340px, 440px) 1fr;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  background: var(--surface-app);
 }
 
-.auth-side {
-  background: var(--surface-dark);
-  color: var(--text-on-dark);
+.auth-centered-inner {
+  width: 100%;
+  max-width: 400px;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  padding: var(--space-10) var(--space-10) var(--space-12);
-  position: relative;
-  overflow: hidden;
+  align-items: center;
+  gap: var(--space-6);
 }
 
-.auth-side-brand {
+.auth-brand-row {
   display: flex;
   align-items: center;
   gap: var(--space-3);
 }
 
 .auth-side-brand-mark {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border-radius: var(--radius-md);
   background: var(--teal-600);
   display: flex;
@@ -36,78 +40,16 @@
 }
 
 .auth-side-brand-mark svg {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   color: var(--white);
 }
 
-.auth-side-brand strong {
+.auth-brand-row strong {
   font-size: var(--text-lg);
   font-weight: 700;
   letter-spacing: -0.01em;
-}
-
-.auth-side-copy {
-  max-width: 360px;
-}
-
-.auth-side-copy h1 {
-  font-size: var(--text-2xl);
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: var(--leading-tight);
-  color: var(--white);
-  margin-bottom: var(--space-4);
-}
-
-.auth-side-copy p {
-  color: var(--ink-200);
-  font-size: var(--text-sm);
-  line-height: var(--leading-relaxed);
-}
-
-.auth-side-stats {
-  display: flex;
-  gap: var(--space-8);
-  padding-top: var(--space-6);
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.auth-side-stat strong {
-  display: block;
-  font-size: var(--text-xl);
-  font-weight: 700;
-  color: var(--white);
-}
-
-.auth-side-stat span {
-  font-size: var(--text-xs);
-  color: var(--ink-300);
-}
-
-/* Compact brand mark shown in place of the side panel on narrow screens —
-   keeps the page from feeling like a bare, unbranded form. */
-.auth-mobile-brand {
-  display: none;
-}
-
-.auth-main {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-6);
-  background: var(--surface-app);
-  min-height: 100dvh;
-  overflow-y: auto;
-}
-
-.auth-main-inner {
-  width: 100%;
-  max-width: 400px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-6);
+  color: var(--text-primary);
 }
 
 .auth-card {
@@ -123,10 +65,12 @@
 }
 
 .auth-card-header h2 {
-  font-size: var(--text-xl);
+  font-family: var(--font-reading);
+  font-size: var(--text-2xl);
   font-weight: 700;
   letter-spacing: -0.01em;
-  margin-bottom: var(--space-1);
+  margin-bottom: var(--space-2);
+  color: var(--text-primary);
 }
 
 .auth-card-header p {
@@ -134,10 +78,32 @@
   font-size: var(--text-sm);
 }
 
+.auth-card-header p .link-btn {
+  font-size: inherit;
+}
+
 .auth-form {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+}
+
+.auth-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.auth-checkbox-row input[type='checkbox'] {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--teal-600);
+  cursor: pointer;
+  flex-shrink: 0;
 }
 
 .auth-turnstile {
@@ -152,8 +118,13 @@
   font-size: var(--text-sm);
 }
 
+.auth-links-center {
+  justify-content: center;
+}
+
 .auth-links a,
-.auth-links button.link-btn {
+.auth-links button.link-btn,
+.link-btn {
   color: var(--text-link);
   font-weight: 500;
   text-decoration: none;
@@ -165,7 +136,8 @@
 }
 
 .auth-links a:hover,
-.auth-links button.link-btn:hover {
+.auth-links button.link-btn:hover,
+.link-btn:hover {
   text-decoration: underline;
 }
 
@@ -199,36 +171,17 @@
   padding-left: var(--space-3) !important;
 }
 
-@media (max-width: 900px) {
-  .auth-screen {
-    grid-template-columns: 1fr;
-  }
-
-  .auth-side {
-    display: none;
-  }
-
-  .auth-mobile-brand {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-  }
-
-  .auth-mobile-brand strong {
-    font-size: var(--text-lg);
-    font-weight: 700;
-    letter-spacing: -0.01em;
-    color: var(--text-primary);
-  }
-}
-
 @media (max-width: 480px) {
-  .auth-main {
+  .auth-screen-centered {
     padding: var(--space-4);
   }
 
   .auth-card {
     padding: var(--space-5);
     border-radius: var(--radius-md);
+  }
+
+  .auth-card-header h2 {
+    font-size: var(--text-xl);
   }
 }

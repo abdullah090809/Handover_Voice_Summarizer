@@ -11,13 +11,21 @@ export const WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL || 'ws://127.0.0.1:8
 const TOKEN_KEY = 'access_token';
 
 export function getToken() {
-  return localStorage.getItem(TOKEN_KEY);
+  return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
 }
-export function setToken(token) {
-  localStorage.setItem(TOKEN_KEY, token);
+/** remember=true persists the session across browser restarts (localStorage); remember=false clears when the browser/tab closes (sessionStorage). */
+export function setToken(token, remember = true) {
+  if (remember) {
+    localStorage.setItem(TOKEN_KEY, token);
+    sessionStorage.removeItem(TOKEN_KEY);
+  } else {
+    sessionStorage.setItem(TOKEN_KEY, token);
+    localStorage.removeItem(TOKEN_KEY);
+  }
 }
 export function clearToken() {
   localStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(TOKEN_KEY);
 }
 
 /** Resolves a possibly-relative file path (e.g. profile_photo_url) returned by the API into a full URL. */

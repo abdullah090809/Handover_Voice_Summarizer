@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import { Mail, Lock, Hash, ArrowRight, Stethoscope, AlertCircle, CheckCircle2, ArrowLeft, UserRound } from 'lucide-react';
+import { Mail, Lock, Hash, ArrowRight, Stethoscope, AlertCircle, CheckCircle2, ArrowLeft, UserRound, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext.jsx';
 import { authApi, ApiError } from '../lib/api.js';
-import { useToast } from '../lib/ToastContext.jsx';
 import { Field, IconInput } from '../components/Field.jsx';
 import { useTurnstile } from '../lib/useTurnstile.js';
 
@@ -20,61 +19,64 @@ export default function AuthPage() {
   }
 
   return (
-    <div className="auth-screen">
-      <aside className="auth-side">
-        <div className="auth-side-brand">
+    <div className="auth-screen-centered">
+      <div className="auth-centered-inner">
+        <div className="auth-brand-row">
           <div className="auth-side-brand-mark">
-            <Stethoscope size={20} />
+            <Stethoscope size={18} />
           </div>
           <strong>Handover</strong>
         </div>
 
-        <div className="auth-side-copy">
-          <h1>Shift handovers your team can trust.</h1>
-          <p>
-            Record a handover by voice, and it's transcribed and structured automatically &mdash; key events,
-            medications, incidents, and follow-ups, organized the moment your shift ends.
-          </p>
-        </div>
-
-        <div className="auth-side-stats">
-          <div className="auth-side-stat">
-            <strong>24/7</strong>
-            <span>Live handover alerts</span>
-          </div>
-          <div className="auth-side-stat">
-            <strong>&lt; 2min</strong>
-            <span>To record a handover</span>
-          </div>
-        </div>
-      </aside>
-
-      <div className="auth-main">
-        <div className="auth-main-inner">
-          <div className="auth-mobile-brand">
-            <div className="auth-side-brand-mark">
-              <Stethoscope size={18} />
+        <div className="auth-card">
+          {banner && (
+            <div className={banner.type === 'error' ? 'form-error-banner' : 'form-success-banner'}>
+              {banner.type === 'error' ? <AlertCircle /> : <CheckCircle2 />}
+              <span>{banner.message}</span>
             </div>
-            <strong>Handover</strong>
-          </div>
+          )}
 
-          <div className="auth-card">
-            {banner && (
-              <div className={banner.type === 'error' ? 'form-error-banner' : 'form-success-banner'}>
-                {banner.type === 'error' ? <AlertCircle /> : <CheckCircle2 />}
-                <span>{banner.message}</span>
-              </div>
-            )}
-
-            {view === 'login' && <LoginForm goTo={goTo} />}
-            {view === 'register' && <RegisterForm goTo={goTo} />}
-            {view === 'verify' && <VerifyForm goTo={goTo} prefillEmail={prefillEmail} />}
-            {view === 'forgot' && <ForgotForm goTo={goTo} />}
-            {view === 'reset' && <ResetForm goTo={goTo} prefillEmail={prefillEmail} />}
-          </div>
+          {view === 'login' && <LoginForm goTo={goTo} />}
+          {view === 'register' && <RegisterForm goTo={goTo} />}
+          {view === 'verify' && <VerifyForm goTo={goTo} prefillEmail={prefillEmail} />}
+          {view === 'forgot' && <ForgotForm goTo={goTo} />}
+          {view === 'reset' && <ResetForm goTo={goTo} prefillEmail={prefillEmail} />}
         </div>
       </div>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// A password field with a text/"Show" toggle, built on the existing
+// IconInput's suffix slot rather than a one-off input.
+function PasswordField({ id, label, hint, value, onChange, autoComplete, minLength }) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <Field label={label} htmlFor={id} hint={hint}>
+      <IconInput
+        icon={Lock}
+        id={id}
+        type={visible ? 'text' : 'password'}
+        required
+        minLength={minLength}
+        autoComplete={autoComplete}
+        value={value}
+        onChange={onChange}
+        suffix={
+          <button
+            type="button"
+            className="input-suffix-btn"
+            onClick={() => setVisible((v) => !v)}
+            aria-label={visible ? 'Hide password' : 'Show password'}
+            tabIndex={-1}
+          >
+            {visible ? <EyeOff size={15} /> : <Eye size={15} />}
+            <span>{visible ? 'Hide' : 'Show'}</span>
+          </button>
+        }
+      />
+    </Field>
   );
 }
 
@@ -83,6 +85,7 @@ function LoginForm({ goTo }) {
   const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [remember, setRemember] = useState(true);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const turnstile = useTurnstile(true);
@@ -96,7 +99,7 @@ function LoginForm({ goTo }) {
     }
     setLoading(true);
     try {
-      await login(email, password, turnstile.token);
+      await login(email, password, turnstile.token, remember);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Something went wrong.');
       turnstile.reset();
@@ -108,8 +111,13 @@ function LoginForm({ goTo }) {
   return (
     <>
       <div className="auth-card-header">
-        <h2>Sign in</h2>
-        <p>Enter your details to access your shift dashboard.</p>
+        <h2>Log in</h2>
+        <p>
+          New to Handover?{' '}
+          <button type="button" className="link-btn" onClick={() => goTo('register')}>
+            Create an account
+          </button>
+        </p>
       </div>
       <form className="auth-form" onSubmit={onSubmit}>
         <Field label="Email address" htmlFor="login-email">
@@ -123,17 +131,13 @@ function LoginForm({ goTo }) {
             onChange={(e) => setEmail(e.target.value)}
           />
         </Field>
-        <Field label="Password" htmlFor="login-password">
-          <IconInput
-            icon={Lock}
-            id="login-password"
-            type="password"
-            required
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </Field>
+
+        <PasswordField id="login-password" label="Password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+
+        <label className="auth-checkbox-row">
+          <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+          <span>Keep me logged in</span>
+        </label>
 
         <div className="auth-turnstile" ref={turnstile.containerRef} />
 
@@ -144,14 +148,11 @@ function LoginForm({ goTo }) {
           </div>
         )}
 
-        <button type="submit" className="btn btn-primary btn-block btn-lg" disabled={loading}>
-          {loading ? <span className="spinner" /> : <>Sign in <ArrowRight size={16} /></>}
+        <button type="submit" className="btn btn-primary btn-block btn-lg btn-pill" disabled={loading}>
+          {loading ? <span className="spinner" /> : <>Log in <ArrowRight size={16} /></>}
         </button>
 
-        <div className="auth-links">
-          <button type="button" className="link-btn" onClick={() => goTo('register')}>
-            Create account
-          </button>
+        <div className="auth-links auth-links-center">
           <button type="button" className="link-btn" onClick={() => goTo('forgot')}>
             Forgot password?
           </button>
@@ -212,17 +213,15 @@ function RegisterForm({ goTo }) {
         <Field label="Email address" htmlFor="reg-email">
           <IconInput icon={Mail} id="reg-email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
         </Field>
-        <Field label="Password" htmlFor="reg-password" hint="Minimum 8 characters">
-          <IconInput
-            icon={Lock}
-            id="reg-password"
-            type="password"
-            required
-            minLength={8}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </Field>
+        <PasswordField
+          id="reg-password"
+          label="Password"
+          hint="Minimum 8 characters"
+          autoComplete="new-password"
+          minLength={8}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
 
         {error && (
           <div className="form-error-banner">
@@ -231,7 +230,7 @@ function RegisterForm({ goTo }) {
           </div>
         )}
 
-        <button type="submit" className="btn btn-primary btn-block btn-lg" disabled={loading}>
+        <button type="submit" className="btn btn-primary btn-block btn-lg btn-pill" disabled={loading}>
           {loading ? <span className="spinner" /> : 'Create account'}
         </button>
 
@@ -326,7 +325,7 @@ function VerifyForm({ goTo, prefillEmail }) {
           </div>
         )}
 
-        <button type="submit" className="btn btn-primary btn-block btn-lg" disabled={loading}>
+        <button type="submit" className="btn btn-primary btn-block btn-lg btn-pill" disabled={loading}>
           {loading ? <span className="spinner" /> : 'Verify account'}
         </button>
         <button type="button" className="btn btn-secondary btn-block" onClick={resend} disabled={resending}>
@@ -376,7 +375,7 @@ function ForgotForm({ goTo }) {
             <span>{error}</span>
           </div>
         )}
-        <button type="submit" className="btn btn-primary btn-block btn-lg" disabled={loading}>
+        <button type="submit" className="btn btn-primary btn-block btn-lg btn-pill" disabled={loading}>
           {loading ? <span className="spinner" /> : 'Send reset code'}
         </button>
         <div className="auth-links">
@@ -439,24 +438,22 @@ function ResetForm({ goTo, prefillEmail }) {
             onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
           />
         </Field>
-        <Field label="New password" htmlFor="reset-password" hint="Minimum 8 characters">
-          <IconInput
-            icon={Lock}
-            id="reset-password"
-            type="password"
-            required
-            minLength={8}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </Field>
+        <PasswordField
+          id="reset-password"
+          label="New password"
+          hint="Minimum 8 characters"
+          autoComplete="new-password"
+          minLength={8}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
         {error && (
           <div className="form-error-banner">
             <AlertCircle />
             <span>{error}</span>
           </div>
         )}
-        <button type="submit" className="btn btn-primary btn-block btn-lg" disabled={loading}>
+        <button type="submit" className="btn btn-primary btn-block btn-lg btn-pill" disabled={loading}>
           {loading ? <span className="spinner" /> : 'Update password'}
         </button>
       </form>

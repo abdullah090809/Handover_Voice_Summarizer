@@ -10,8 +10,11 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
+from app.cores.celery_app import celery_app
 from app.cores.database import engine
 from app.cores.limiter import limiter
+from app.cores.redis_client import redis_client
+from app.cores.seed import seed_manager_account
 from app.services.transcription import get_whisper_model
 from app.routers import auth, handover, residents, shifts, user, websocket, notifications
 
@@ -27,6 +30,7 @@ async def lifespan(app: FastAPI):
     logger.info("Warming Whisper model before accepting traffic")
     get_whisper_model()
     app.state.main_loop = asyncio.get_running_loop()
+    seed_manager_account()
     yield
 
 
@@ -80,6 +84,12 @@ def health_db():
     with engine.connect() as conn:
         conn.execute(text("SELECT 1"))
     return {"database": "connected"}
+
+
+@app.get("/health/redis")
+def health_redis():
+    redis_client.ping()
+    return {"redis": "connected"}
 
 # pyrefly: ignore [missing-import]
 from fastapi.middleware.cors import CORSMiddleware

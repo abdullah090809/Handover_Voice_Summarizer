@@ -24,7 +24,7 @@ export function IconInput({ icon: Icon, suffix, ...props }) {
   return (
     <div className="input-icon-wrap">
       {Icon && <Icon className="field-icon" />}
-      <input className={`input ${props.className || ''}`} {...props} />
+      <input className={`input ${suffix ? 'has-suffix' : ''} ${props.className || ''}`} {...props} />
       {suffix}
     </div>
   );

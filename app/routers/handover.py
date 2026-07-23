@@ -1,24 +1,19 @@
-import asyncio
 import os
 import tempfile
 import logging
 from datetime import date
-from fastapi import APIRouter, Depends, HTTPException, Query, status, UploadFile, File, Form, BackgroundTasks, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, status, UploadFile, File, Form, Request
 from sqlalchemy.orm import Session
 
-from app.cores.database import get_db, SessionLocal
+from app.cores.database import get_db
 from app.cores.limiter import limiter
 from app.cores.security import get_current_user
 from app.models.handover_note import HandoverNote
 from app.models.resident import Resident
-from app.models.notification import Notification
 from app.models.shift import Shift
 from app.models.user import User
 from app.schemas.handover_note import HandoverNoteAccepted, HandoverNoteOut
-from app.services.transcription import transcribe_audio
-from app.services.summarizer import summarize_transcript
-from app.services.email import send_urgent_handover_email
-from app.routers.websocket import manager
+from app.tasks import process_handover_note
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +34,12 @@ ALLOWED_AUDIO_SUFFIXES = {".wav", ".mp3", ".m4a", ".webm", ".ogg"}
 MAX_AUDIO_BYTES = 25 * 1024 * 1024  # 25 MB
 _UPLOAD_CHUNK_SIZE = 1024 * 1024  # 1 MB
 
+# Shared volume mounted into both the api and celery_worker containers —
+# the OS-default temp dir is private per-container, which breaks Celery
+# from being able to read a file the api container wrote.
+_UPLOAD_DIR = "/app/audio_uploads"
+os.makedirs(_UPLOAD_DIR, exist_ok=True)
+
 
 def _save_upload_to_tempfile(audio: UploadFile) -> str:
     if audio.content_type not in ALLOWED_AUDIO_CONTENT_TYPES:
@@ -52,7 +53,7 @@ def _save_upload_to_tempfile(audio: UploadFile) -> str:
         suffix = ".wav"
 
     size = 0
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix, dir=_UPLOAD_DIR)
     try:
         while chunk := audio.file.read(_UPLOAD_CHUNK_SIZE):
             size += len(chunk)
@@ -71,112 +72,6 @@ def _save_upload_to_tempfile(audio: UploadFile) -> str:
         return tmp.name
 
 
-def _process_handover_note(note_id: int, tmp_path: str, main_loop: asyncio.AbstractEventLoop) -> None:
-    db: Session = SessionLocal()
-    try:
-        note = db.query(HandoverNote).filter(HandoverNote.id == note_id).first()
-        if note is None:
-            logger.error("Background handover processing: note %s not found", note_id)
-            return
-
-        note.status = "processing"
-        db.commit()
-
-        try:
-            transcript = transcribe_audio(tmp_path)
-        except Exception:
-            logger.exception("Whisper transcription failed for note %s", note_id)
-            note.status = "failed"
-            note.error_message = "Audio transcription failed"
-            db.commit()
-            try:
-                asyncio.run_coroutine_threadsafe(
-                    manager.broadcast(f'{{"type": "handover_updated", "id": {note_id}, "status": "failed"}}'),
-                    main_loop
-                )
-            except Exception as e:
-                logger.error(f"WebSocket broadcast failed: {e}")
-            return
-
-        try:
-            structured_summary = summarize_transcript(transcript)
-        except Exception:
-            logger.exception("Gemini summarization failed for note %s", note_id)
-            note.status = "failed"
-            note.raw_transcript = transcript
-            note.error_message = "Structured summary generation failed"
-            db.commit()
-            try:
-                asyncio.run_coroutine_threadsafe(
-                    manager.broadcast(f'{{"type": "handover_updated", "id": {note_id}, "status": "failed"}}'),
-                    main_loop
-                )
-            except Exception as e:
-                logger.error(f"WebSocket broadcast failed: {e}")
-            return
-
-        note.raw_transcript = transcript
-        note.summary_json = structured_summary
-        note.urgency_flag = structured_summary.get("urgency_flag", "low")
-        note.status = "complete"
-        db.commit()
-        db.refresh(note)
-
-        # Notify via WebSocket about handover completion
-        try:
-            asyncio.run_coroutine_threadsafe(
-                manager.broadcast(f'{{"type": "handover_updated", "id": {note_id}, "status": "complete"}}'),
-                main_loop
-            )
-        except Exception as e:
-            logger.error(f"WebSocket broadcast failed: {e}")
-
-        # Check for safety-relevant notifications for high/urgent urgency
-        if note.urgency_flag in ("high", "urgent"):
-            resident = db.query(Resident).filter(Resident.id == note.resident_id).first()
-            resident_name = resident.name if resident else "Unknown Resident"
-            summary_text = structured_summary.get("summary", "")
-
-            # Create internal database Notification for Managers
-            db_notification = Notification(
-                message=f"Urgent handover note #{note.id} recorded for resident {resident_name}.",
-                urgency_flag=note.urgency_flag,
-                resident_id=note.resident_id,
-                handover_note_id=note.id,
-            )
-            db.add(db_notification)
-            db.commit()
-            db.refresh(db_notification)
-
-            try:
-                asyncio.run_coroutine_threadsafe(
-                    manager.broadcast(f'{{"type": "notification", "id": {db_notification.id}, "message": "{db_notification.message}", "urgency_flag": "{db_notification.urgency_flag}", "resident_id": {note.resident_id or "null"}}}'),
-                    main_loop
-                )
-            except Exception as e:
-                logger.error(f"WebSocket notification broadcast failed: {e}")
-
-            # Send Email alerts to all managers
-            managers = db.query(User).filter(User.role == "manager").all()
-            for manager_user in managers:
-                try:
-                    send_urgent_handover_email(
-                        to_email=manager_user.email,
-                        resident_name=resident_name,
-                        summary=summary_text,
-                        note_id=note.id,
-                    )
-                except Exception:
-                    logger.exception(
-                        "Failed to send urgent handover email",
-                        extra={"manager_email": manager_user.email, "note_id": note.id},
-                    )
-    finally:
-        db.close()
-        if os.path.exists(tmp_path):
-            os.remove(tmp_path)
-
-
 @router.post(
     "/transcribe",
     response_model=HandoverNoteAccepted,
@@ -185,14 +80,12 @@ def _process_handover_note(note_id: int, tmp_path: str, main_loop: asyncio.Abstr
 @limiter.limit("20/hour")
 def transcribe_handover_audio(
     request: Request,
-    background_tasks: BackgroundTasks,
     shift_id: int = Form(...),
     resident_id: int = Form(...),
     audio: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    # Requirement: Managers should NOT record notes or upload handovers
     if current_user.role == "manager":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -218,6 +111,24 @@ def transcribe_handover_audio(
             detail=f"Resident with id {resident_id} not found",
         )
 
+    # Guard against duplicate submissions (double-click, flaky-network retry, etc.)
+    # racing to create two HandoverNote rows + two Celery tasks for the same
+    # shift/resident before the first one has finished processing.
+    existing_in_progress = (
+        db.query(HandoverNote)
+        .filter(
+            HandoverNote.shift_id == shift_id,
+            HandoverNote.resident_id == resident_id,
+            HandoverNote.status.in_(["pending", "processing"]),
+        )
+        .first()
+    )
+    if existing_in_progress:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A handover note for this shift and resident is already being processed.",
+        )
+
     tmp_path = _save_upload_to_tempfile(audio)
 
     new_note = HandoverNote(
@@ -229,8 +140,7 @@ def transcribe_handover_audio(
     db.commit()
     db.refresh(new_note)
 
-    main_loop = request.app.state.main_loop
-    background_tasks.add_task(_process_handover_note, new_note.id, tmp_path, main_loop)
+    process_handover_note.delay(new_note.id, tmp_path)
 
     return new_note
 

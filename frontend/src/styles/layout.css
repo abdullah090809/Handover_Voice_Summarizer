@@ -43,6 +43,18 @@
   background: rgba(255, 255, 255, 0.16);
 }
 
+/* This button only makes sense for the mobile/tablet drawer (≤1024px,
+   where the sidebar slides in/out via .sidebar.open). Above that width the
+   sidebar is permanently shown regardless of the open/closed JS state, so
+   if that state is ever left "open" while the window is wide (e.g. resized
+   after opening the drawer), this button would otherwise render as a dead
+   control with nothing to close. */
+@media (min-width: 1025px) {
+  .sidebar-close-btn {
+    display: none !important;
+  }
+}
+
 .sidebar-brand {
   display: flex;
   align-items: center;
@@ -215,20 +227,49 @@
 
 .topbar {
   height: var(--topbar-height);
-  border-bottom: 1px solid var(--border-default);
+  border-bottom: 1px solid var(--border-subtle);
   background: var(--surface-card);
   display: flex;
   align-items: center;
   padding: 0 var(--space-6);
-  gap: var(--space-4);
+  gap: var(--space-5);
   position: sticky;
   top: 0;
   z-index: 30;
   flex-shrink: 0;
+  box-shadow: var(--shadow-xs);
 }
 
 .topbar-menu-btn {
   display: none;
+}
+
+.topbar-mobile-brand {
+  display: none;
+}
+
+.topbar-mobile-brand-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  background: var(--teal-600);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.topbar-mobile-brand-mark svg {
+  width: 15px;
+  height: 15px;
+  color: var(--white);
+}
+
+.topbar-mobile-brand strong {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
 }
 
 .topbar-titles {
@@ -239,16 +280,20 @@
 }
 
 .topbar-title {
-  font-size: var(--text-lg);
-  font-weight: 700;
-  letter-spacing: -0.01em;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--text-secondary);
 }
 
 .breadcrumbs {
   display: flex;
   align-items: center;
   gap: var(--space-1);
-  font-size: var(--text-xs);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   color: var(--text-tertiary);
 }
 
@@ -257,8 +302,7 @@
 }
 
 .breadcrumbs .crumb-current {
-  color: var(--text-secondary);
-  font-weight: 500;
+  color: var(--teal-600);
 }
 
 .topbar-search {
@@ -282,9 +326,10 @@
   height: 38px;
   padding: 0 var(--space-3) 0 calc(var(--space-3) * 2 + 16px);
   border-radius: var(--radius-md);
-  border: 1px solid var(--border-default);
-  background: var(--surface-card);
+  border: 1px solid transparent;
+  background: var(--surface-app);
   font-size: var(--text-sm);
+  transition: border-color var(--duration-fast) var(--ease-standard), background var(--duration-fast) var(--ease-standard);
 }
 
 .topbar-search input:focus {
@@ -299,6 +344,8 @@
   align-items: center;
   gap: var(--space-2);
   flex-shrink: 0;
+  padding-left: var(--space-3);
+  border-left: 1px solid var(--border-subtle);
 }
 
 .icon-btn {
@@ -388,6 +435,11 @@
   align-items: center;
   gap: var(--space-3);
   flex-wrap: wrap;
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  margin-bottom: var(--space-5);
 }
 
 .filter-bar .select {

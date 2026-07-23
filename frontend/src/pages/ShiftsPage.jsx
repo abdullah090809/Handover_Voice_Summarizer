@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Clock, Square, LogIn } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Clock, Square, LogIn, CalendarDays } from 'lucide-react';
 import { shiftApi, userApi, ApiError } from '../lib/api.js';
 import { useAuth } from '../lib/AuthContext.jsx';
 import { useToast } from '../lib/ToastContext.jsx';
@@ -73,6 +73,43 @@ export default function ShiftsPage() {
   useEffect(() => {
     if (!activeShift) return undefined;
     const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [activeShift]);
+
+  // If a worker forgets to clock out, don't let the session run forever —
+  // once the calendar day rolls over past the day it started, automatically
+  // close it at the last moment of that day. This only fires while someone
+  // has the app open (there's no backend cron job doing this), so it checks
+  // immediately on load and then once a minute for as long as the tab stays
+  // open.
+  const autoClockOutInFlight = useRef(false);
+  useEffect(() => {
+    if (!activeShift) return undefined;
+
+    function checkAutoClockOut() {
+      if (autoClockOutInFlight.current) return;
+      const startDay = toDateInputValue(new Date(activeShift.start_time));
+      const today = toDateInputValue(new Date());
+      if (startDay === today) return;
+
+      const endOfStartDay = new Date(activeShift.start_time);
+      endOfStartDay.setHours(23, 59, 59, 999);
+
+      autoClockOutInFlight.current = true;
+      shiftApi
+        .update(activeShift.id, activeShift.start_time, endOfStartDay.toISOString())
+        .then(() => {
+          showToast("You were automatically clocked out at midnight — don't forget to clock in again for your next shift.", 'info');
+          load();
+        })
+        .catch(() => { })
+        .finally(() => {
+          autoClockOutInFlight.current = false;
+        });
+    }
+
+    checkAutoClockOut();
+    const id = setInterval(checkAutoClockOut, 60 * 1000);
     return () => clearInterval(id);
   }, [activeShift]);
 
@@ -195,7 +232,7 @@ export default function ShiftsPage() {
       )}
 
       {shifts !== null && (
-        <div className="stat-row">
+        <div className="stat-row stat-row-stacked">
           <div className="stat-card">
             <div className="stat-card-top">
               <span className="stat-card-icon">
@@ -240,7 +277,9 @@ export default function ShiftsPage() {
           </select>
         )}
         <label className="shift-range-field">
-          <span>From</span>
+          <span>
+            <CalendarDays size={14} /> From
+          </span>
           <input
             type="date"
             className="input"
@@ -250,7 +289,9 @@ export default function ShiftsPage() {
           />
         </label>
         <label className="shift-range-field">
-          <span>To</span>
+          <span>
+            <CalendarDays size={14} /> To
+          </span>
           <input
             type="date"
             className="input"

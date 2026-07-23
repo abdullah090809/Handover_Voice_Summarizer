@@ -11,12 +11,25 @@
 .stat-card {
   background: var(--surface-card);
   border: 1px solid var(--border-default);
+  border-top: 3px solid var(--teal-600);
   border-radius: var(--radius-lg);
   padding: var(--space-5);
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
   min-width: 0;
+}
+
+.stat-card:has(.stat-card-icon.tone-high) {
+  border-top-color: var(--urgency-high);
+}
+
+.stat-card:has(.stat-card-icon.tone-medium) {
+  border-top-color: var(--urgency-medium);
+}
+
+.stat-card:has(.stat-card-icon.tone-info) {
+  border-top-color: var(--info);
 }
 
 .stat-card-top {
@@ -588,10 +601,20 @@
   gap: var(--space-2);
   font-size: var(--text-sm);
   color: var(--text-secondary);
+  flex: 1;
+  min-width: 170px;
+}
+
+.shift-range-field span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-shrink: 0;
+  font-weight: 500;
 }
 
 .shift-range-field .input {
-  width: auto;
+  width: 100%;
 }
 
 .session-list {
@@ -694,37 +717,69 @@
 
 @media (max-width: 640px) {
   .shift-tracker-card {
-    flex-wrap: wrap;
+    flex-direction: column;
+    align-items: stretch;
     gap: var(--space-4);
     padding: var(--space-4);
   }
 
+  .shift-tracker-info {
+    order: 1;
+  }
+
   .shift-tracker-timer-block {
+    order: 2;
     min-width: 0;
     text-align: left;
-    order: 3;
-    flex: 1;
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+  }
+
+  .shift-tracker-timer {
+    font-size: var(--text-xl);
   }
 
   .shift-tracker-started {
+    margin-top: 0;
     justify-content: flex-start;
   }
 
   .shift-tracker-btn {
-    order: 2;
+    order: 3;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .stat-card-top .badge {
+    font-size: 10px;
+    padding: 2px var(--space-2);
   }
 
   .session-row {
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-areas:
+      'day duration'
+      'times times';
+    column-gap: var(--space-3);
+    row-gap: var(--space-3);
+    align-items: center;
   }
 
-  .session-times {
-    order: 3;
-    flex-basis: 100%;
+  .session-day {
+    grid-area: day;
   }
 
   .session-duration-block {
-    text-align: left;
+    grid-area: duration;
+    justify-self: end;
+    text-align: right;
+  }
+
+  .session-times {
+    grid-area: times;
   }
 }
 
@@ -993,7 +1048,7 @@
 
 .profile-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: var(--space-5);
   align-items: start;
 }

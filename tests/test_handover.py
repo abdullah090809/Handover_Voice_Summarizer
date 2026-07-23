@@ -31,11 +31,11 @@ def _fake_audio_file(filename="test.wav", content_type="audio/wav", body=b"fake 
 
 def test_transcribe_creates_handover_note(client, worker_auth_headers, test_shift, test_resident):
     with patch(
-        "app.routers.handover.transcribe_audio", return_value="Patient ate lunch, no concerns."
+        "app.tasks.transcribe_audio", return_value="Patient ate lunch, no concerns."
     ) as mock_transcribe, patch(
-        "app.routers.handover.summarize_transcript", return_value=_mock_summary("low")
+        "app.tasks.summarize_transcript", return_value=_mock_summary("low")
     ) as mock_summarize, patch(
-        "app.routers.handover.send_urgent_handover_email"
+        "app.tasks.send_urgent_handover_email"
     ) as mock_email:
         response = client.post(
             "/handover/transcribe",
@@ -64,8 +64,8 @@ def test_transcribe_creates_handover_note(client, worker_auth_headers, test_shif
 
 def test_transcribe_accepts_various_audio_content_types(client, worker_auth_headers, test_shift, test_resident):
     for content_type in ("audio/mpeg", "audio/m4a", "audio/ogg", "audio/webm"):
-        with patch("app.routers.handover.transcribe_audio", return_value="ok"), patch(
-            "app.routers.handover.summarize_transcript", return_value=_mock_summary("low")
+        with patch("app.tasks.transcribe_audio", return_value="ok"), patch(
+            "app.tasks.summarize_transcript", return_value=_mock_summary("low")
         ):
             response = client.post(
                 "/handover/transcribe",
@@ -103,8 +103,8 @@ def test_transcribe_as_manager_forbidden(client, manager_auth_headers, test_shif
 
 
 def test_transcribe_nonexistent_shift_returns_404(client, worker_auth_headers, test_resident):
-    with patch("app.routers.handover.transcribe_audio"), patch(
-        "app.routers.handover.summarize_transcript"
+    with patch("app.tasks.transcribe_audio"), patch(
+        "app.tasks.summarize_transcript"
     ):
         response = client.post(
             "/handover/transcribe",
@@ -126,8 +126,8 @@ def test_transcribe_shift_not_owned_by_user_forbidden(client, db_session, test_r
     intruder = make_worker(db_session, "intruder@test.com")
     headers = auth_headers_for(intruder)
 
-    with patch("app.routers.handover.transcribe_audio"), patch(
-        "app.routers.handover.summarize_transcript"
+    with patch("app.tasks.transcribe_audio"), patch(
+        "app.tasks.summarize_transcript"
     ):
         response = client.post(
             "/handover/transcribe",
@@ -141,8 +141,8 @@ def test_transcribe_shift_not_owned_by_user_forbidden(client, db_session, test_r
 
 
 def test_transcribe_nonexistent_resident_returns_404(client, worker_auth_headers, test_shift):
-    with patch("app.routers.handover.transcribe_audio"), patch(
-        "app.routers.handover.summarize_transcript"
+    with patch("app.tasks.transcribe_audio"), patch(
+        "app.tasks.summarize_transcript"
     ):
         response = client.post(
             "/handover/transcribe",
@@ -192,8 +192,8 @@ def test_transcribe_rejects_unsupported_content_type(client, worker_auth_headers
 
 def test_transcribe_rejects_file_over_size_limit(client, worker_auth_headers, test_shift, test_resident):
     big_body = b"a" * (25 * 1024 * 1024 + 1)
-    with patch("app.routers.handover.transcribe_audio"), patch(
-        "app.routers.handover.summarize_transcript"
+    with patch("app.tasks.transcribe_audio"), patch(
+        "app.tasks.summarize_transcript"
     ):
         response = client.post(
             "/handover/transcribe",
@@ -208,8 +208,8 @@ def test_transcribe_rejects_file_over_size_limit(client, worker_auth_headers, te
 
 def test_transcribe_file_exactly_at_size_limit_accepted(client, worker_auth_headers, test_shift, test_resident):
     exact_body = b"a" * (25 * 1024 * 1024)
-    with patch("app.routers.handover.transcribe_audio", return_value="ok"), patch(
-        "app.routers.handover.summarize_transcript", return_value=_mock_summary("low")
+    with patch("app.tasks.transcribe_audio", return_value="ok"), patch(
+        "app.tasks.summarize_transcript", return_value=_mock_summary("low")
     ):
         response = client.post(
             "/handover/transcribe",
@@ -224,8 +224,8 @@ def test_transcribe_file_exactly_at_size_limit_accepted(client, worker_auth_head
 def test_transcribe_unrecognized_suffix_falls_back_to_wav(client, worker_auth_headers, test_shift, test_resident):
     """An allowed content type with an unrecognized/absent filename suffix
     should still be accepted (defaults internally to .wav)."""
-    with patch("app.routers.handover.transcribe_audio", return_value="ok") as mock_transcribe, patch(
-        "app.routers.handover.summarize_transcript", return_value=_mock_summary("low")
+    with patch("app.tasks.transcribe_audio", return_value="ok") as mock_transcribe, patch(
+        "app.tasks.summarize_transcript", return_value=_mock_summary("low")
     ):
         response = client.post(
             "/handover/transcribe",
@@ -239,13 +239,63 @@ def test_transcribe_unrecognized_suffix_falls_back_to_wav(client, worker_auth_he
 
 
 # ---------------------------------------------------------------------------
+# POST /handover/transcribe — duplicate in-progress submission guard
+# ---------------------------------------------------------------------------
+
+def test_transcribe_duplicate_in_progress_returns_409(
+    client, worker_auth_headers, test_shift, test_resident, db_session
+):
+    """A second submission for the same shift+resident while an earlier one
+    is still pending/processing should be rejected, to avoid two Celery
+    tasks racing on the same handover."""
+    db_session.add(
+        HandoverNote(shift_id=test_shift.id, resident_id=test_resident.id, status="processing")
+    )
+    db_session.commit()
+
+    response = client.post(
+        "/handover/transcribe",
+        data={"shift_id": test_shift.id, "resident_id": test_resident.id},
+        files=_fake_audio_file(),
+        headers=worker_auth_headers,
+    )
+
+    assert response.status_code == 409
+    assert "already being processed" in response.json()["detail"]
+
+
+def test_transcribe_allowed_again_once_previous_note_completed(
+    client, worker_auth_headers, test_shift, test_resident, db_session
+):
+    """The duplicate guard only blocks pending/processing notes — a
+    completed (or failed) prior note for the same shift+resident must not
+    block a new submission."""
+    db_session.add(
+        HandoverNote(shift_id=test_shift.id, resident_id=test_resident.id, status="complete")
+    )
+    db_session.commit()
+
+    with patch("app.tasks.transcribe_audio", return_value="ok"), patch(
+        "app.tasks.summarize_transcript", return_value=_mock_summary("low")
+    ):
+        response = client.post(
+            "/handover/transcribe",
+            data={"shift_id": test_shift.id, "resident_id": test_resident.id},
+            files=_fake_audio_file(),
+            headers=worker_auth_headers,
+        )
+
+    assert response.status_code == 202
+
+
+# ---------------------------------------------------------------------------
 # Background processing failure paths
 # ---------------------------------------------------------------------------
 
 def test_transcribe_transcription_failure_marks_note_failed(client, worker_auth_headers, test_shift, test_resident):
     with patch(
-        "app.routers.handover.transcribe_audio", side_effect=Exception("Whisper exploded")
-    ), patch("app.routers.handover.summarize_transcript") as mock_summarize:
+        "app.tasks.transcribe_audio", side_effect=Exception("Whisper exploded")
+    ), patch("app.tasks.summarize_transcript") as mock_summarize:
         response = client.post(
             "/handover/transcribe",
             data={"shift_id": test_shift.id, "resident_id": test_resident.id},
@@ -264,8 +314,8 @@ def test_transcribe_transcription_failure_marks_note_failed(client, worker_auth_
 
 
 def test_transcribe_summarizer_failure_marks_note_failed(client, worker_auth_headers, test_shift, test_resident):
-    with patch("app.routers.handover.transcribe_audio", return_value="Some transcript"), patch(
-        "app.routers.handover.summarize_transcript", side_effect=Exception("Gemini exploded")
+    with patch("app.tasks.transcribe_audio", return_value="Some transcript"), patch(
+        "app.tasks.summarize_transcript", side_effect=Exception("Gemini exploded")
     ):
         response = client.post(
             "/handover/transcribe",
@@ -292,10 +342,10 @@ def test_transcribe_summarizer_failure_marks_note_failed(client, worker_auth_hea
 
 def test_transcribe_high_urgency_emails_managers(client, worker_auth_headers, test_shift, test_resident, test_manager):
     with patch(
-        "app.routers.handover.transcribe_audio", return_value="Resident fell, needs review."
+        "app.tasks.transcribe_audio", return_value="Resident fell, needs review."
     ), patch(
-        "app.routers.handover.summarize_transcript", return_value=_mock_summary("high")
-    ), patch("app.routers.handover.send_urgent_handover_email") as mock_email:
+        "app.tasks.summarize_transcript", return_value=_mock_summary("high")
+    ), patch("app.tasks.send_urgent_handover_email") as mock_email:
         response = client.post(
             "/handover/transcribe",
             data={"shift_id": test_shift.id, "resident_id": test_resident.id},
@@ -318,10 +368,10 @@ def test_transcribe_high_urgency_emails_managers(client, worker_auth_headers, te
 
 def test_transcribe_urgent_flag_also_triggers_email(client, worker_auth_headers, test_shift, test_resident, test_manager):
     with patch(
-        "app.routers.handover.transcribe_audio", return_value="Medication error occurred."
+        "app.tasks.transcribe_audio", return_value="Medication error occurred."
     ), patch(
-        "app.routers.handover.summarize_transcript", return_value=_mock_summary("urgent")
-    ), patch("app.routers.handover.send_urgent_handover_email") as mock_email:
+        "app.tasks.summarize_transcript", return_value=_mock_summary("urgent")
+    ), patch("app.tasks.send_urgent_handover_email") as mock_email:
         response = client.post(
             "/handover/transcribe",
             data={"shift_id": test_shift.id, "resident_id": test_resident.id},
@@ -336,9 +386,9 @@ def test_transcribe_urgent_flag_also_triggers_email(client, worker_auth_headers,
 def test_transcribe_low_urgency_does_not_notify_or_email(client, worker_auth_headers, test_shift, test_resident, db_session):
     from app.models.notification import Notification
 
-    with patch("app.routers.handover.transcribe_audio", return_value="All good"), patch(
-        "app.routers.handover.summarize_transcript", return_value=_mock_summary("low")
-    ), patch("app.routers.handover.send_urgent_handover_email") as mock_email:
+    with patch("app.tasks.transcribe_audio", return_value="All good"), patch(
+        "app.tasks.summarize_transcript", return_value=_mock_summary("low")
+    ), patch("app.tasks.send_urgent_handover_email") as mock_email:
         response = client.post(
             "/handover/transcribe",
             data={"shift_id": test_shift.id, "resident_id": test_resident.id},
@@ -365,10 +415,10 @@ def test_transcribe_high_urgency_emails_all_managers(client, worker_auth_headers
     db_session.commit()
 
     with patch(
-        "app.routers.handover.transcribe_audio", return_value="Resident fell."
+        "app.tasks.transcribe_audio", return_value="Resident fell."
     ), patch(
-        "app.routers.handover.summarize_transcript", return_value=_mock_summary("high")
-    ), patch("app.routers.handover.send_urgent_handover_email") as mock_email:
+        "app.tasks.summarize_transcript", return_value=_mock_summary("high")
+    ), patch("app.tasks.send_urgent_handover_email") as mock_email:
         response = client.post(
             "/handover/transcribe",
             data={"shift_id": test_shift.id, "resident_id": test_resident.id},
@@ -386,10 +436,10 @@ def test_transcribe_high_urgency_email_failure_does_not_break_request(
     client, worker_auth_headers, test_shift, test_resident, test_manager
 ):
     with patch(
-        "app.routers.handover.transcribe_audio", return_value="Resident fell, needs review."
+        "app.tasks.transcribe_audio", return_value="Resident fell, needs review."
     ), patch(
-        "app.routers.handover.summarize_transcript", return_value=_mock_summary("high")
-    ), patch("app.routers.handover.send_urgent_handover_email", side_effect=Exception("Resend down")):
+        "app.tasks.summarize_transcript", return_value=_mock_summary("high")
+    ), patch("app.tasks.send_urgent_handover_email", side_effect=Exception("Resend down")):
         response = client.post(
             "/handover/transcribe",
             data={"shift_id": test_shift.id, "resident_id": test_resident.id},
@@ -411,10 +461,10 @@ def test_transcribe_high_urgency_creates_db_notification(
     from app.models.notification import Notification
 
     with patch(
-        "app.routers.handover.transcribe_audio", return_value="Resident fell."
+        "app.tasks.transcribe_audio", return_value="Resident fell."
     ), patch(
-        "app.routers.handover.summarize_transcript", return_value=_mock_summary("high")
-    ), patch("app.routers.handover.send_urgent_handover_email"):
+        "app.tasks.summarize_transcript", return_value=_mock_summary("high")
+    ), patch("app.tasks.send_urgent_handover_email"):
         response = client.post(
             "/handover/transcribe",
             data={"shift_id": test_shift.id, "resident_id": test_resident.id},

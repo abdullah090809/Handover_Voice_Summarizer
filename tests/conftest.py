@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from app.cores.celery_app import celery_app
 from app.cores.config import settings
 from app.cores.database import Base, get_db
 from app.cores.limiter import limiter
@@ -46,11 +47,28 @@ def _reset_rate_limiter():
 @pytest.fixture(autouse=True)
 def _patch_background_task_session(monkeypatch, db_session):
     """
-    _process_handover_note() calls SessionLocal() directly (not via DI),
-    so without this it writes to the real app database instead of the
-    test database, and test assertions never see its writes.
+    process_handover_note() (now a Celery task in app.tasks) calls
+    SessionLocal() directly (not via DI), so without this it writes to the
+    real app database instead of the test database, and test assertions
+    never see its writes.
     """
-    monkeypatch.setattr("app.routers.handover.SessionLocal", TestingSessionLocal)
+    monkeypatch.setattr("app.tasks.SessionLocal", TestingSessionLocal)
+
+
+@pytest.fixture(autouse=True)
+def _run_celery_tasks_eagerly():
+    """
+    /handover/transcribe now hands off processing to Celery via
+    process_handover_note.delay(), which normally just publishes a message
+    to the Redis broker for a separate worker process to pick up. There's
+    no worker running in tests, so switch Celery into "eager" mode: .delay()
+    executes the task function synchronously, in-process, without touching
+    the broker at all. This restores the old assumption that handover
+    processing has finished by the time a test's request call returns.
+    """
+    celery_app.conf.task_always_eager = True
+    celery_app.conf.task_eager_propagates = False
+    yield
 
 
 @pytest.fixture()

@@ -42,7 +42,8 @@ jobs:
       gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
       resend_api_key: ${{ secrets.RESEND_API_KEY }}
 
-      # Added this
+      seed_manager_email: ${{ secrets.SEED_MANAGER_EMAIL }}
+      seed_manager_password: ${{ secrets.SEED_MANAGER_PASSWORD }}
       turnstile_secret_key: ${{ secrets.TURNSTILE_SECRET_KEY }}
 
     steps:

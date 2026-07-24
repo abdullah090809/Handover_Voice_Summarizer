@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { WS_BASE_URL, notificationApi } from './api.js';
+import { WS_BASE_URL, getToken, notificationApi } from './api.js';
 import { useAuth } from './AuthContext.jsx';
 import { useToast } from './ToastContext.jsx';
 
@@ -40,7 +40,11 @@ export function WebSocketProvider({ children }) {
     if (user.role === 'manager') refreshUnreadCount();
 
     function connect() {
-      const ws = new WebSocket(`${WS_BASE_URL}/ws/handovers`);
+      const token = getToken();
+      if (!token) return;
+
+      const wsUrl = `${WS_BASE_URL}/ws/handovers?token=${encodeURIComponent(token)}`;
+      const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.onmessage = (event) => {
@@ -65,8 +69,12 @@ export function WebSocketProvider({ children }) {
         }
       };
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         wsRef.current = null;
+        if (event.code === 4001 || event.code === 1008) {
+          console.warn('WebSocket connection rejected due to authorization. Will not reconnect.');
+          return;
+        }
         reconnectTimer.current = setTimeout(connect, 5000);
       };
       ws.onerror = () => ws.close();

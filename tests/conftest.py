@@ -53,6 +53,7 @@ def _patch_background_task_session(monkeypatch, db_session):
     never see its writes.
     """
     monkeypatch.setattr("app.tasks.SessionLocal", TestingSessionLocal)
+    monkeypatch.setattr("app.routers.websocket.SessionLocal", TestingSessionLocal)
 
 
 @pytest.fixture(autouse=True)

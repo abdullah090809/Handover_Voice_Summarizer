@@ -25,6 +25,16 @@ def _publish_ws(event: dict) -> None:
         logger.exception("Failed to publish websocket event: %r", event)
 
 
+def _should_cleanup_temp_file(task, task_failed_with_exception: bool) -> bool:
+    if not task_failed_with_exception:
+        return True
+    retries = getattr(getattr(task, "request", None), "retries", 0)
+    max_retries = getattr(task, "max_retries", 3)
+    if max_retries is not None and retries < max_retries:
+        return False
+    return True
+
+
 @celery_app.task(
     bind=True,
     autoretry_for=(Exception,),
@@ -34,6 +44,7 @@ def _publish_ws(event: dict) -> None:
 )
 def process_handover_note(self, note_id: int, tmp_path: str) -> None:
     db = SessionLocal()
+    task_failed_with_exception = False
     try:
         note = db.query(HandoverNote).filter(HandoverNote.id == note_id).first()
         if note is None:
@@ -132,7 +143,14 @@ def process_handover_note(self, note_id: int, tmp_path: str) -> None:
                 logger.info(
                     "Notification already exists for note %s, skipping duplicate", note_id
                 )
+    except Exception:
+        task_failed_with_exception = True
+        raise
     finally:
         db.close()
-        if os.path.exists(tmp_path):
-            os.remove(tmp_path)
+        if _should_cleanup_temp_file(self, task_failed_with_exception):
+            if os.path.exists(tmp_path):
+                try:
+                    os.remove(tmp_path)
+                except Exception:
+                    logger.exception("Failed to remove temp file %s", tmp_path)

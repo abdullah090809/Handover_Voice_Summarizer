@@ -1,7 +1,10 @@
 import json
+import logging
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 from app.cores.database import get_db
 from app.cores.security import get_current_user, require_manager
@@ -124,8 +127,8 @@ async def update_resident_status(
                 "urgency_flag": "high",
                 "resident_id": resident.id,
             }))
-        except Exception as e:
-            pass
+        except Exception:
+            logger.exception("Failed to broadcast resident status update websocket notification")
 
     return resident
 

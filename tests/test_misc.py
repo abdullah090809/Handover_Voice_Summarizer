@@ -28,10 +28,17 @@ def test_http_exception_uses_custom_envelope(client, worker_auth_headers):
     assert body["detail"] == "Resident with id 99999 not found"
 
 
-def test_websocket_handovers_connects_and_stays_open(client):
-    with client.websocket_connect("/ws/handovers") as websocket:
-        # Server doesn't push anything unprompted; just confirm the
-        # handshake succeeds and the socket can be closed cleanly.
+import pytest
+
+
+def test_websocket_handovers_unauthenticated_rejected(client):
+    with pytest.raises(Exception):
+        with client.websocket_connect("/ws/handovers"):
+            pass
+
+
+def test_websocket_handovers_authenticated(client, worker_token):
+    with client.websocket_connect(f"/ws/handovers?token={worker_token}") as websocket:
         websocket.close()
 
 

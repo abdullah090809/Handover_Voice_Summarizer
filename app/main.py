@@ -10,12 +10,13 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
+from redis.asyncio import Redis as AsyncRedis
 from app.cores.celery_app import celery_app
+from app.cores.config import settings
 from app.cores.database import engine
 from app.cores.limiter import limiter
 from app.cores.redis_client import redis_client
 from app.cores.seed import seed_manager_account
-from app.services.transcription import get_whisper_model
 from app.routers import auth, handover, residents, shifts, user, websocket, notifications
 
 logging.basicConfig(
@@ -25,13 +26,41 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+async def start_redis_ws_subscriber(manager):
+    r = AsyncRedis(
+        host=settings.redis_host,
+        port=settings.redis_port,
+        decode_responses=True,
+    )
+    pubsub = r.pubsub()
+    await pubsub.subscribe("ws_broadcast")
+    logger.info("Subscribed to Redis ws_broadcast channel")
+    try:
+        async for message in pubsub.listen():
+            if message and message.get("type") == "message":
+                data = message.get("data")
+                if data:
+                    await manager.broadcast(data)
+    except asyncio.CancelledError:
+        logger.info("Redis ws_broadcast subscriber cancelled")
+    except Exception as e:
+        logger.exception("Error in Redis ws_broadcast subscriber: %s", e)
+    finally:
+        await pubsub.unsubscribe("ws_broadcast")
+        await r.close()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Warming Whisper model before accepting traffic")
-    get_whisper_model()
     app.state.main_loop = asyncio.get_running_loop()
     seed_manager_account()
+    subscriber_task = asyncio.create_task(start_redis_ws_subscriber(websocket.manager))
     yield
+    subscriber_task.cancel()
+    try:
+        await subscriber_task
+    except asyncio.CancelledError:
+        pass
 
 
 app = FastAPI(lifespan=lifespan)

@@ -27,6 +27,16 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     env:
       database_hostname: localhost
       database_port: 5432
@@ -34,6 +44,9 @@ jobs:
       database_password: ${{ secrets.DATABASE_PASSWORD }}
       database_name: ${{ secrets.TEST_DATABASE_NAME }}
       test_database_name: ${{ secrets.TEST_DATABASE_NAME }}
+
+      redis_host: localhost
+      redis_port: 6379
 
       secret_key: ${{ secrets.SECRET_KEY }}
       algorithm: ${{ secrets.ALGORITHM }}

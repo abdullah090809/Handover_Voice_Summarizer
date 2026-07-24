@@ -71,7 +71,7 @@ services:
       REDIS_HOST: redis
     volumes:
       - audio_uploads:/app/audio_uploads
-    command: celery -A app.cores.celery_app.celery_app worker --loglevel=info --pool=solo
+    command: celery -A app.cores.celery_app.celery_app worker --loglevel=info --pool=threads -c 2
     develop:
       watch:
         - action: sync

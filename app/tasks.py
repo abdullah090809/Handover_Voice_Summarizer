@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import app.models
+from google.genai.errors import ClientError
 from app.cores.celery_app import celery_app
 from app.cores.database import SessionLocal
 from app.cores.redis_client import redis_client
@@ -35,6 +36,10 @@ def _should_cleanup_temp_file(task, task_failed_with_exception: bool) -> bool:
     return True
 
 
+def _is_quota_error(exc: Exception) -> bool:
+    return "RESOURCE_EXHAUSTED" in str(exc) or "429" in str(exc)
+
+
 @celery_app.task(
     bind=True,
     autoretry_for=(Exception,),
@@ -62,6 +67,7 @@ def process_handover_note(self, note_id: int, tmp_path: str) -> None:
 
         note.status = "processing"  # pyrefly: ignore [bad-assignment]
         db.commit()
+        _publish_ws({"type": "handover_updated", "id": note_id, "status": "processing"})
 
         try:
             transcript = transcribe_audio(tmp_path)
@@ -75,7 +81,19 @@ def process_handover_note(self, note_id: int, tmp_path: str) -> None:
 
         try:
             structured_summary = summarize_transcript(transcript)
-        except Exception:
+        except (ClientError, Exception) as e:
+            if isinstance(e, ClientError) and _is_quota_error(e):
+                logger.warning(
+                    "Gemini quota exceeded for note %s; saving transcript without summary", note_id
+                )
+                note.raw_transcript = transcript  # pyrefly: ignore [bad-assignment]
+                note.status = "complete"  # pyrefly: ignore [bad-assignment]
+                note.error_message = "Summary unavailable: Gemini API quota reached. Transcript saved."  # pyrefly: ignore [bad-assignment]
+                db.commit()
+                db.refresh(note)
+                _publish_ws({"type": "handover_updated", "id": note_id, "status": "complete"})
+                return
+
             logger.exception("Gemini summarization failed for note %s", note_id)
             note.status = "failed"  # pyrefly: ignore [bad-assignment]
             note.raw_transcript = transcript  # pyrefly: ignore [bad-assignment]

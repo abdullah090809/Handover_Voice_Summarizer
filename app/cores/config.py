@@ -15,13 +15,14 @@ class Settings(BaseSettings):
     algorithm: str
     access_token_expire_minutes: int
     gemini_api_key: str
-    resend_api_key: str
     turnstile_secret_key: str
     seed_manager_email: str
     seed_manager_password: str
     seed_manager_username: str = "manager"
     redis_host: str = "redis"
     redis_port: int = 6379
+    gmail_smtp_user: str
+    gmail_smtp_password: str
 
     class Config:
         env_file = _ENV_FILE

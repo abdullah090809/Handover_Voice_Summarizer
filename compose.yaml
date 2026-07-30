@@ -32,6 +32,9 @@ services:
   api:
     build: .
     restart: always
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     depends_on:
       db:
         condition: service_healthy
@@ -46,6 +49,7 @@ services:
       - "8000:8000"
     volumes:
       - audio_uploads:/app/audio_uploads
+      - whisper_models:/app/app/whisper_models
     command: >
       sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
     develop:
@@ -59,6 +63,9 @@ services:
   celery_worker:
     build: .
     restart: always
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     depends_on:
       redis:
         condition: service_healthy
@@ -71,6 +78,7 @@ services:
       REDIS_HOST: redis
     volumes:
       - audio_uploads:/app/audio_uploads
+      - whisper_models:/app/app/whisper_models
     command: celery -A app.cores.celery_app.celery_app worker --loglevel=info --pool=threads -c 2
     develop:
       watch:
@@ -101,3 +109,4 @@ volumes:
   postgres_data:
   redis_data:
   audio_uploads:
+  whisper_models:

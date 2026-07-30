@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timezone
 
 import pytest
@@ -72,6 +73,15 @@ def _run_celery_tasks_eagerly():
     yield
 
 
+async def _fake_ws_subscriber(manager):
+    """Stand-in for app.main.start_redis_ws_subscriber (see the `client`
+    fixture below for why)."""
+    try:
+        await asyncio.Future()  # sleeps until lifespan cancels it on shutdown
+    except asyncio.CancelledError:
+        raise
+
+
 @pytest.fixture()
 def db_session():
     Base.metadata.drop_all(bind=engine)
@@ -104,6 +114,18 @@ def client(db_session, monkeypatch):
     # throws off exact call-count assertions. It only exists to bootstrap
     # a real deployment, so it's a no-op for tests.
     monkeypatch.setattr("app.main.seed_manager_account", lambda: None)
+
+    # app.main's lifespan also spawns start_redis_ws_subscriber, a
+    # background task that opens a real Redis pubsub connection. If Redis
+    # isn't reachable (no broker running in CI), pubsub.subscribe() raises
+    # outside its own try/except, so the task finishes in an *exception*
+    # state rather than getting cleanly cancelled. On shutdown, lifespan's
+    # `await subscriber_task` then re-raises that connection error instead
+    # of the CancelledError it's prepared to catch — crashing teardown for
+    # every single test that uses this fixture. Swap in a lightweight
+    # stand-in that just waits to be cancelled, so tests don't depend on a
+    # live Redis broker.
+    monkeypatch.setattr("app.main.start_redis_ws_subscriber", _fake_ws_subscriber)
 
     with TestClient(app) as test_client:
         yield test_client

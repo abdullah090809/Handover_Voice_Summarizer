@@ -1,3 +1,6 @@
+import pytest
+
+
 def test_root_status_check(client):
     response = client.get("/")
     assert response.status_code == 200
@@ -26,9 +29,6 @@ def test_http_exception_uses_custom_envelope(client, worker_auth_headers):
     body = response.json()
     assert body["success"] is False
     assert body["detail"] == "Resident with id 99999 not found"
-
-
-import pytest
 
 
 def test_websocket_handovers_unauthenticated_rejected(client):

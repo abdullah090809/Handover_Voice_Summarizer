@@ -17,8 +17,8 @@ def get_whisper_model():
     if _model is None:
         with _model_lock:
             if _model is None:
-                logger.info("Loading Whisper model 'base' from %s", _MODEL_DIR)
-                _model = whisper.load_model("base", download_root=_MODEL_DIR)
+                logger.info("Loading Whisper model 'turbo' from %s", _MODEL_DIR)
+                _model = whisper.load_model("turbo", download_root=_MODEL_DIR)
                 logger.info("Whisper model loaded")
     return _model
 

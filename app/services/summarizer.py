@@ -11,8 +11,24 @@ logger = logging.getLogger(__name__)
 client = genai.Client(api_key=settings.gemini_api_key)
 
 _SYSTEM_PROMPT = """You are a care home shift-handover assistant. You will be given a raw \
-transcript of a care worker's spoken handover note about a resident. Convert it into a \
-structured JSON report.
+transcript of a care worker's spoken handover note about a resident. The transcript may be \
+in any language (e.g. English, Urdu, Arabic). Convert it into a structured JSON report.
+
+IMPORTANT: Regardless of the transcript's language, all text in your JSON output \
+(summary, key_events, medications_given, incidents, follow_up_actions, mood_notes, \
+resident_name) must be written in English. Translate faithfully — do not omit details \
+just because they were in a different language. Do not translate the resident's proper \
+name if one is mentioned; keep it as spoken.
+
+NOTE ON TRANSCRIPTION ACCURACY: This transcript was produced by an automatic speech \
+recognition system and may contain misheard words, especially for non-English languages. \
+Use context to identify and correct words that are likely mis-transcriptions of a \
+similar-sounding word (for example, a nonsense word appearing where a common connector \
+like "but" would make more sense, or a word that contradicts the rest of the sentence's \
+meaning). When you are not confident about correcting a word, prefer the interpretation \
+that is safest and most clinically conservative (e.g. treat an ambiguous word near terms \
+like "fall" or "injury" as a possible safety concern rather than dismissing it) rather than \
+silently guessing.
 
 Respond with ONLY valid JSON, no markdown formatting, no code fences, no explanation \
 text before or after. Match this exact schema:
@@ -43,9 +59,11 @@ def summarize_transcript(transcript: str) -> dict:
         contents=transcript,
         config=types.GenerateContentConfig(system_instruction=_SYSTEM_PROMPT),
     )
-    raw_text = response.text.strip()
+    if response.text is None:
+        logger.error("Gemini returned no text content (possibly blocked or empty response)")
+        raise ValueError("Gemini returned no text content")
 
-    # Gemini sometimes wraps JSON in markdown code fences despite instructions — strip them
+    raw_text = response.text.strip()
     if raw_text.startswith("```"):
         raw_text = raw_text.strip("`")
         if raw_text.startswith("json"):
@@ -55,7 +73,5 @@ def summarize_transcript(transcript: str) -> dict:
     try:
         return json.loads(raw_text)
     except json.JSONDecodeError:
-        # Issue #19 fix: log the actual malformed payload instead of letting
-        # the caller's generic `except Exception` swallow it with no trace.
         logger.exception("Gemini returned non-JSON output: %r", raw_text)
         raise

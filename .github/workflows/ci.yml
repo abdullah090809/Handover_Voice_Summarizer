@@ -53,7 +53,8 @@ jobs:
       access_token_expire_minutes: ${{ secrets.ACCESS_TOKEN_EXPIRE_MINUTES }}
 
       gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
-      resend_api_key: ${{ secrets.RESEND_API_KEY }}
+      gmail_smtp_user: ${{ secrets.GMAIL_SMTP_USER }}
+      gmail_smtp_password: ${{ secrets.GMAIL_SMTP_PASSWORD }}
 
       seed_manager_email: ${{ secrets.SEED_MANAGER_EMAIL }}
       seed_manager_password: ${{ secrets.SEED_MANAGER_PASSWORD }}

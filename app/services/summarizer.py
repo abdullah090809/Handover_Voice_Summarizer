@@ -1,8 +1,10 @@
 import json
 import logging
+import random
+import time
 
 from google import genai
-from google.genai import types
+from google.genai import errors, types
 
 from app.cores.config import settings
 
@@ -52,13 +54,81 @@ or urgent medical issue mentioned. "medium" for notable but non-urgent issues. "
 a routine, uneventful handover.
 """
 
+# Status codes worth retrying — transient/rate-limit conditions only.
+_RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
+_MAX_RETRIES = 3
+_BASE_DELAY_SECONDS = 2.0
+
+
+class GeminiSummarizationError(Exception):
+    """Base class for summarization failures."""
+
+
+class GeminiQuotaExceededError(GeminiSummarizationError):
+    """Rate limit / quota hit (HTTP 429). Transient — caller may retry later."""
+
+
+class GeminiAccessDeniedError(GeminiSummarizationError):
+    """Project/key denied access (HTTP 403). NOT transient — retrying won't help.
+    Caller should stop retrying and surface this for investigation (billing,
+    suspended project, revoked key, etc.) rather than looping."""
+
+
+def _call_gemini(transcript: str):
+    """Single call attempt, with backoff+jitter only on retryable errors."""
+    last_exc: Exception | None = None
+
+    for attempt in range(1, _MAX_RETRIES + 1):
+        try:
+            return client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=transcript,
+                config=types.GenerateContentConfig(system_instruction=_SYSTEM_PROMPT),
+            )
+        except errors.ClientError as exc:
+            status_code = getattr(exc, "code", None) or getattr(exc, "status_code", None)
+
+            if status_code == 403:
+                # Not transient — fail fast, don't burn retries on a dead key/project.
+                logger.error("Gemini access denied (403): %s", exc)
+                raise GeminiAccessDeniedError(str(exc)) from exc
+
+            if status_code == 429:
+                last_exc = exc
+                if attempt == _MAX_RETRIES:
+                    logger.warning("Gemini quota exceeded after %d attempts", attempt)
+                    raise GeminiQuotaExceededError(str(exc)) from exc
+                delay = _BASE_DELAY_SECONDS * (2 ** (attempt - 1)) + random.uniform(0, 1)
+                logger.info(
+                    "Gemini rate-limited (attempt %d/%d), backing off %.1fs",
+                    attempt, _MAX_RETRIES, delay,
+                )
+                time.sleep(delay)
+                continue
+
+            if status_code in _RETRYABLE_STATUS_CODES:
+                last_exc = exc
+                if attempt == _MAX_RETRIES:
+                    raise
+                delay = _BASE_DELAY_SECONDS * (2 ** (attempt - 1)) + random.uniform(0, 1)
+                logger.warning(
+                    "Gemini transient error %s (attempt %d/%d), retrying in %.1fs",
+                    status_code, attempt, _MAX_RETRIES, delay,
+                )
+                time.sleep(delay)
+                continue
+
+            # Non-retryable, non-403 client error (e.g. 400 bad request) — fail fast.
+            logger.error("Gemini client error (%s): %s", status_code, exc)
+            raise
+
+    # Should be unreachable, but keeps type-checkers happy.
+    raise last_exc  # type: ignore[misc]
+
 
 def summarize_transcript(transcript: str) -> dict:
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=transcript,
-        config=types.GenerateContentConfig(system_instruction=_SYSTEM_PROMPT),
-    )
+    response = _call_gemini(transcript)
+
     if response.text is None:
         logger.error("Gemini returned no text content (possibly blocked or empty response)")
         raise ValueError("Gemini returned no text content")

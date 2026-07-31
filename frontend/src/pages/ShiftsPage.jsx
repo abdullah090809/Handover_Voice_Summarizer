@@ -1,8 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Clock, Square, LogIn, CalendarDays } from 'lucide-react';
 import { shiftApi, userApi, ApiError } from '../lib/api.js';
 import { useAuth } from '../lib/AuthContext.jsx';
 import { useToast } from '../lib/ToastContext.jsx';
+import { useAutoClockOut } from '../lib/useAutoClockOut.js';
 import { SkeletonGrid, EmptyState, ErrorState } from '../components/States.jsx';
 import Pagination from '../components/Pagination.jsx';
 import { usePagination } from '../lib/usePagination.js';
@@ -76,42 +77,11 @@ export default function ShiftsPage() {
     return () => clearInterval(id);
   }, [activeShift]);
 
-  // If a worker forgets to clock out, don't let the session run forever —
-  // once the calendar day rolls over past the day it started, automatically
-  // close it at the last moment of that day. This only fires while someone
-  // has the app open (there's no backend cron job doing this), so it checks
-  // immediately on load and then once a minute for as long as the tab stays
-  // open.
-  const autoClockOutInFlight = useRef(false);
-  useEffect(() => {
-    if (!activeShift) return undefined;
-
-    function checkAutoClockOut() {
-      if (autoClockOutInFlight.current) return;
-      const startDay = toDateInputValue(new Date(activeShift.start_time));
-      const today = toDateInputValue(new Date());
-      if (startDay === today) return;
-
-      const endOfStartDay = new Date(activeShift.start_time);
-      endOfStartDay.setHours(23, 59, 59, 999);
-
-      autoClockOutInFlight.current = true;
-      shiftApi
-        .update(activeShift.id, activeShift.start_time, endOfStartDay.toISOString())
-        .then(() => {
-          showToast("You were automatically clocked out at midnight — don't forget to clock in again for your next shift.", 'info');
-          load();
-        })
-        .catch(() => { })
-        .finally(() => {
-          autoClockOutInFlight.current = false;
-        });
-    }
-
-    checkAutoClockOut();
-    const id = setInterval(checkAutoClockOut, 60 * 1000);
-    return () => clearInterval(id);
-  }, [activeShift]);
+  useAutoClockOut(
+    activeShift,
+    () => showToast("You were automatically clocked out at midnight — don't forget to clock in again for your next shift.", 'info'),
+    () => load(isManager ? selectedWorkerId : undefined)
+  );
 
   const inRangeShifts = useMemo(() => {
     if (!shifts) return [];

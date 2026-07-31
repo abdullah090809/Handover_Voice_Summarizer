@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Plus,
@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext.jsx';
 import { handoverApi, residentApi, shiftApi, notificationApi, ApiError } from '../lib/api.js';
+import { useAutoClockOut } from '../lib/useAutoClockOut.js';
 import { UrgencyBadge } from '../components/Badge.jsx';
 import { EmptyState } from '../components/States.jsx';
 import { formatRelative, formatDateTime, firstName, truncate } from '../lib/format.js';
@@ -31,6 +32,10 @@ export default function DashboardPage() {
   const [error, setError] = useState(null);
   const [showNewModal, setShowNewModal] = useState(false);
   const [openNote, setOpenNote] = useState(null);
+
+  const reloadShifts = useCallback(() => {
+    shiftApi.list().then(setShifts).catch(() => { });
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -72,6 +77,8 @@ export default function DashboardPage() {
   const nextShift = shifts
     .filter((s) => new Date(s.start_time).getTime() > Date.now())
     .sort((a, b) => new Date(a.start_time) - new Date(b.start_time))[0];
+
+  useAutoClockOut(!isManager ? currentShift : null, null, reloadShifts);
 
   const unreadAlerts = notifications.filter((n) => !n.is_read).length;
   const activeResidents = residents.filter((r) => r.status === 'active');

@@ -1,10 +1,3 @@
-// ============================================================================
-// API CLIENT
-// Thin wrapper around fetch. Every endpoint here maps 1:1 to a route that
-// already exists in the FastAPI backend (see app/routers/*.py) — nothing
-// here is speculative.
-// ============================================================================
-
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 export const WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL || 'ws://127.0.0.1:8000';
 
@@ -73,7 +66,10 @@ async function request(endpoint, options = {}, retries = 3, delay = 800) {
       continue;
     }
 
-    if (response.status === 401) {
+    // Only treat 401 as "session expired" for authenticated requests.
+    // A 401 from /login means wrong credentials, not an expired session —
+    // let it fall through so the backend's actual error message is shown.
+    if (response.status === 401 && endpoint !== '/login') {
       onUnauthorized();
       throw new ApiError('Session expired. Please sign in again.', 401, null);
     }

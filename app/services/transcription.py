@@ -1,5 +1,7 @@
 import logging
 import os
+import subprocess
+import tempfile
 import threading
 
 import whisper
@@ -23,7 +25,35 @@ def get_whisper_model():
     return _model
 
 
+def preprocess_audio(input_path: str) -> str:
+    fd, output_path = tempfile.mkstemp(suffix=".wav")
+    os.close(fd)
+
+    try:
+        subprocess.run(
+            [
+                "ffmpeg", "-y", "-i", input_path,
+                "-af", "highpass=f=80,afftdn=nf=-25,loudnorm=I=-16:TP=-1.5:LRA=11,dynaudnorm",
+                "-ar", "16000", "-ac", "1",
+                output_path,
+            ],
+            check=True,
+            capture_output=True,
+        )
+    except subprocess.CalledProcessError as e:
+        logger.error("ffmpeg preprocessing failed: %s", e.stderr.decode(errors="ignore"))
+        os.remove(output_path)
+        raise
+
+    return output_path
+
+
 def transcribe_audio(file_path: str) -> str:
     model = get_whisper_model()
-    result = model.transcribe(file_path)
-    return result["text"].strip()
+    processed_path = preprocess_audio(file_path)
+
+    try:
+        result = model.transcribe(processed_path)
+        return result["text"].strip()
+    finally:
+        os.remove(processed_path)

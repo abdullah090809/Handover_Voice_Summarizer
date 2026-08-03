@@ -36,7 +36,7 @@ export default function HandoversPage() {
         handoverApi.list({ urgency: urgencyFilter || undefined, residentId: residentFilter || undefined }),
         residentApi.list(true),
       ]);
-      setNotes(notesData);
+      setNotes(notesData.results);
       setResidents(residentsData);
       if (!isManager) {
         shiftApi.list().then(setShifts).catch(() => setShifts([]));

@@ -43,9 +43,13 @@ export function WebSocketProvider({ children }) {
       const token = getToken();
       if (!token) return;
 
-      const wsUrl = `${WS_BASE_URL}/ws/handovers?token=${encodeURIComponent(token)}`;
+      const wsUrl = `${WS_BASE_URL}/ws/handovers`;
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
+
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ type: 'auth', token }));
+      };
 
       ws.onmessage = (event) => {
         let data;

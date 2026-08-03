@@ -4,3 +4,28 @@ python_version = "3.13.14"
 [tool.pyrefly.errors]
 bad-assignment = false
 
+# ---------------------------------------------------------------------------
+# Item 34: pytest-cov configuration
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+asyncio_mode = "auto"  # pytest-asyncio auto-mode for async tests
+
+[tool.coverage.run]
+source = ["app"]
+omit = [
+    "app/cores/seed.py",       # bootstrap code, not meaningful to unit-test
+    "app/cores/database.py",   # pure wiring
+    "*/migrations/*",
+    "*/alembic/*",
+    "venv/*",
+]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 60   # Raise gradually; start at 60% and increase each sprint
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+]

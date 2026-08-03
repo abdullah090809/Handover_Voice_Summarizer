@@ -1250,26 +1250,41 @@
   letter-spacing: normal;
 }
 
+/* ==========================================================================
+   PROFILE COMPLETION CARD
+   Icon + heading + description sit together as one readable block.
+   The "Complete profile" button lives on its own row below the progress
+   bar (see .profile-completion-actions) rather than sharing the top row —
+   cramming a button sideways into that row is what previously forced the
+   text column down to ~1 word per line.
+   ========================================================================== */
 .profile-completion-card .panel-body {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-4);
 }
 
 .profile-completion-top {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--space-3);
 }
 
-.profile-completion-top>div {
+.profile-completion-top-text {
   flex: 1;
+  min-width: 0;
+}
+
+.profile-completion-top-text strong {
+  display: block;
+  font-size: var(--text-base);
 }
 
 .profile-completion-top p {
   font-size: var(--text-sm);
   color: var(--text-secondary);
   margin-top: 2px;
+  line-height: var(--leading-normal);
 }
 
 .profile-completion-icon {
@@ -1282,6 +1297,11 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+}
+
+.profile-completion-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .progress-track {
@@ -1299,8 +1319,8 @@
 }
 
 @media (max-width: 600px) {
-  .profile-completion-top {
-    flex-wrap: wrap;
+  .profile-completion-actions .btn {
+    width: 100%;
   }
 }
 

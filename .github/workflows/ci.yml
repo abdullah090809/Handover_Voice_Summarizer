@@ -59,6 +59,7 @@ jobs:
       seed_manager_email: ${{ secrets.SEED_MANAGER_EMAIL }}
       seed_manager_password: ${{ secrets.SEED_MANAGER_PASSWORD }}
       turnstile_secret_key: ${{ secrets.TURNSTILE_SECRET_KEY }}
+      REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
 
     steps:
       - name: Checkout code
@@ -73,9 +74,38 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
+          # Item 34: install coverage + asyncio support
+          pip install pytest-cov pytest-asyncio
+
+      # Item 36: Dependency vulnerability scan
+      - name: Security scan (pip-audit)
+        run: |
+          pip install pip-audit
+          pip-audit --requirement requirements.txt --ignore-vuln GHSA-jfh8-c2jp-5h7v --skip-editable || true
+          # '|| true' prevents CI from failing on known-acceptable vulns while we
+          # track them in requirements.in comments; remove once all are resolved.
 
       - name: Run Alembic migrations
         run: alembic upgrade head
 
-      - name: Run tests
-        run: pytest -v
+      # Item 34: Run tests with coverage
+      - name: Run tests with coverage
+        run: |
+          pytest -v --cov=app --cov-report=term-missing --cov-report=xml --cov-fail-under=60
+
+      # Item 34: Upload coverage artifact for review
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: coverage.xml
+          retention-days: 14
+
+      # Item 36: SAST via bandit (static security analysis)
+      - name: SAST scan (bandit)
+        run: |
+          pip install bandit
+          bandit -r app/ -ll --exclude app/cores/seed.py || true
+          # '-ll' = medium severity and above; '|| true' = non-blocking for now.
+          # Change to strict once all findings are triaged.

@@ -57,7 +57,7 @@ export default function AppShell() {
           <GlobalSearch />
           {isManager && (
             <div className="topbar-actions">
-              <Link to="/notifications" viewTransition className="icon-btn" aria-label={`Alerts${unreadCount ? `, ${unreadCount} unread` : ''}`}>
+              <Link to="/notifications" className="icon-btn" aria-label={`Alerts${unreadCount ? `, ${unreadCount} unread` : ''}`}>
                 <Bell size={19} />
                 {unreadCount > 0 && <span className="icon-btn-dot" />}
               </Link>

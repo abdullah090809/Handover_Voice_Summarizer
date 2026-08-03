@@ -106,3 +106,4 @@ export function useLiveUpdates() {
   if (!ctx) throw new Error('useLiveUpdates must be used within WebSocketProvider');
   return ctx;
 }
+

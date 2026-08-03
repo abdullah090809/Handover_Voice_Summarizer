@@ -74,3 +74,4 @@ export function usePagination(items, { pageSize: defaultPageSize = 10 } = {}) {
     resetToFirstPage,
   };
 }
+

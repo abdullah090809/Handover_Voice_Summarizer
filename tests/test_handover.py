@@ -499,7 +499,7 @@ def test_list_handover_notes(client, worker_auth_headers, test_shift, test_resid
     response = client.get("/handover/", headers=worker_auth_headers)
 
     assert response.status_code == 200
-    body = response.json()
+    body = response.json()["results"]
     assert len(body) >= 1
 
 
@@ -523,7 +523,7 @@ def test_list_handover_notes_filter_by_urgency(client, worker_auth_headers, test
     response = client.get("/handover/?urgency_flag=high", headers=worker_auth_headers)
 
     assert response.status_code == 200
-    body = response.json()
+    body = response.json()["results"]
     assert all(n["urgency_flag"] == "high" for n in body)
     assert any(n["raw_transcript"] == "High urgency note" for n in body)
 
@@ -544,7 +544,7 @@ def test_list_handover_notes_filter_by_resident_id(client, worker_auth_headers, 
     response = client.get(f"/handover/?resident_id={resident_a.id}", headers=worker_auth_headers)
 
     assert response.status_code == 200
-    body = response.json()
+    body = response.json()["results"]
     assert all(n["resident_id"] == resident_a.id for n in body)
 
 
@@ -564,14 +564,14 @@ def test_list_handover_notes_filter_by_date_range(client, worker_auth_headers, t
         headers=worker_auth_headers,
     )
     assert in_range.status_code == 200
-    assert any(n["id"] == note.id for n in in_range.json())
+    assert any(n["id"] == note.id for n in in_range.json()["results"])
 
     out_of_range = client.get(
         f"/handover/?date_from={tomorrow.isoformat()}",
         headers=worker_auth_headers,
     )
     assert out_of_range.status_code == 200
-    assert not any(n["id"] == note.id for n in out_of_range.json())
+    assert not any(n["id"] == note.id for n in out_of_range.json()["results"])
 
 
 def test_list_handover_notes_pagination(client, worker_auth_headers, test_shift, test_resident, db_session):
@@ -581,7 +581,9 @@ def test_list_handover_notes_pagination(client, worker_auth_headers, test_shift,
 
     response = client.get("/handover/?skip=0&limit=2", headers=worker_auth_headers)
     assert response.status_code == 200
-    assert len(response.json()) == 2
+    res = response.json()
+    assert res["total"] == 5
+    assert len(res["results"]) == 2
 
 
 def test_list_handover_notes_limit_over_max_rejected(client, worker_auth_headers):
@@ -672,3 +674,85 @@ def test_delete_handover_note_requires_auth(client, test_shift, test_resident, d
 
     response = client.delete(f"/handover/{note.id}")
     assert response.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Item 30: Per-resident / per-shift access scoping
+# ---------------------------------------------------------------------------
+
+def test_worker_only_sees_own_shifts_notes_in_list(client, worker_auth_headers, test_shift, test_resident, db_session):
+    """A care worker's list endpoint returns only notes tied to their own shifts."""
+    from datetime import datetime, timezone
+    from .conftest import make_worker, auth_headers_for
+
+    # Note owned by the test worker (via test_shift)
+    own_note = HandoverNote(
+        shift_id=test_shift.id, resident_id=test_resident.id,
+        raw_transcript="Mine", summary_json=_mock_summary("low"), urgency_flag="low",
+    )
+    # A second worker with their own shift and note
+    other_worker = make_worker(db_session, email="other2@test.com")
+    other_shift = Shift(worker_id=other_worker.id, start_time=datetime.now(timezone.utc))
+    db_session.add(other_shift)
+    db_session.commit()
+    other_note = HandoverNote(
+        shift_id=other_shift.id, resident_id=test_resident.id,
+        raw_transcript="Not mine", summary_json=_mock_summary("low"), urgency_flag="low",
+    )
+    db_session.add_all([own_note, other_note])
+    db_session.commit()
+
+    response = client.get("/handover/", headers=worker_auth_headers)
+    assert response.status_code == 200
+    data = response.json()
+    ids = [r["id"] for r in data["results"]]
+    assert own_note.id in ids
+    assert other_note.id not in ids
+
+
+def test_worker_cannot_get_other_workers_note(client, test_shift, test_resident, db_session):
+    """GET /handover/{id} returns 403 if the note belongs to another worker's shift."""
+    from datetime import datetime, timezone
+    from .conftest import make_worker, auth_headers_for
+
+    other_worker = make_worker(db_session, email="other3@test.com")
+    other_shift = Shift(worker_id=other_worker.id, start_time=datetime.now(timezone.utc))
+    db_session.add(other_shift)
+    db_session.commit()
+    other_note = HandoverNote(
+        shift_id=other_shift.id, resident_id=test_resident.id,
+        raw_transcript="Sensitive", summary_json=_mock_summary("low"), urgency_flag="low",
+    )
+    db_session.add(other_note)
+    db_session.commit()
+
+    # Request as the original test_user (not other_worker)
+    from .conftest import make_worker as _mw
+    first_worker = db_session.query(__import__("app.models.user", fromlist=["User"]).User).filter_by(username="worker1").first()
+    headers = auth_headers_for(first_worker)
+
+    response = client.get(f"/handover/{other_note.id}", headers=headers)
+    assert response.status_code == 403
+
+
+def test_manager_sees_all_notes_in_list(client, manager_auth_headers, test_shift, test_resident, db_session):
+    """Managers can list all handover notes regardless of which shift they belong to."""
+    from datetime import datetime, timezone
+    from .conftest import make_worker
+
+    other_worker = make_worker(db_session, email="other4@test.com")
+    other_shift = Shift(worker_id=other_worker.id, start_time=datetime.now(timezone.utc))
+    db_session.add(other_shift)
+    db_session.commit()
+    note_a = HandoverNote(shift_id=test_shift.id, resident_id=test_resident.id,
+                          summary_json=_mock_summary("low"), urgency_flag="low")
+    note_b = HandoverNote(shift_id=other_shift.id, resident_id=test_resident.id,
+                          summary_json=_mock_summary("low"), urgency_flag="low")
+    db_session.add_all([note_a, note_b])
+    db_session.commit()
+
+    response = client.get("/handover/", headers=manager_auth_headers)
+    assert response.status_code == 200
+    ids = [r["id"] for r in response.json()["results"]]
+    assert note_a.id in ids
+    assert note_b.id in ids

@@ -221,3 +221,50 @@ def make_worker(db_session, email="otherworker@test.com", username=None):
 def auth_headers_for(user):
     token = create_access_token(data={"user_id": str(user.id)})
     return {"Authorization": f"Bearer {token}"}
+
+
+class FakeRedis:
+    def __init__(self):
+        self.store = {}
+
+    def get(self, key):
+        # Redis return type is bytes/string, let's keep it string/bytes or simulate standard behavior.
+        # The blocklist_token method sets value as "1". Let's return bytes or string.
+        # In security.py: bool(_get_redis().get(...))
+        # In handover.py: json.loads(cached)
+        val = self.store.get(key)
+        if val is None:
+            return None
+        # Return string or bytes depending on key. Return string since decode_responses is common, or just return value.
+        return val
+
+    def set(self, key, value, *args, **kwargs):
+        self.store[key] = str(value)
+        return True
+
+    def setex(self, key, time, value):
+        self.store[key] = str(value)
+        return True
+
+    def delete(self, key):
+        if key in self.store:
+            del self.store[key]
+            return 1
+        return 0
+
+    def ping(self):
+        return True
+
+
+@pytest.fixture(autouse=True)
+def _mock_redis_client(monkeypatch):
+    fake = FakeRedis()
+    monkeypatch.setattr("app.cores.redis_client.redis_client", fake)
+    # Also patch security._get_redis if needed, but it loads from app.cores.redis_client.redis_client
+    # Let's verify if security.py does 'from app.cores.redis_client import redis_client'
+    # Wait, security.py does:
+    # def _get_redis():
+    #     from app.cores.redis_client import redis_client
+    #     return redis_client
+    # So patching app.cores.redis_client.redis_client works perfectly because security.py imports it!
+    yield fake

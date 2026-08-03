@@ -13,7 +13,7 @@ from app.models.user import User
 # ---------------------------------------------------------------------------
 
 def test_register_creates_pending_user(client, db_session):
-    with patch("app.routers.auth.send_verification_email") as mock_send:
+    with patch("app.routers.auth.send_verification_email_task") as mock_send:
         response = client.post(
             "/register",
             json={"email": "newuser@test.com", "username": "newuser1", "password": "securepass123"},
@@ -21,7 +21,7 @@ def test_register_creates_pending_user(client, db_session):
 
     assert response.status_code == 201
     assert response.json() == {"message": "Verification code sent to your email"}
-    mock_send.assert_called_once()
+    mock_send.delay.assert_called_once()
 
     pending = db_session.query(PendingUser).filter(PendingUser.email == "newuser@test.com").first()
     assert pending is not None
@@ -42,19 +42,19 @@ def test_register_duplicate_verified_email_fails(client, test_user):
 
 
 def test_register_existing_pending_user_reissues_otp(client, db_session):
-    with patch("app.routers.auth.send_verification_email"):
+    with patch("app.routers.auth.send_verification_email_task"):
         client.post("/register", json={"email": "dupe@test.com", "username": "dupeuser", "password": "securepass123"})
 
     first_pending = db_session.query(PendingUser).filter(PendingUser.email == "dupe@test.com").first()
     first_otp = first_pending.otp_code
 
-    with patch("app.routers.auth.send_verification_email") as mock_send:
+    with patch("app.routers.auth.send_verification_email_task") as mock_send:
         response = client.post(
             "/register", json={"email": "dupe@test.com", "username": "dupeuser2", "password": "newpassword456"}
         )
 
     assert response.status_code == 201
-    mock_send.assert_called_once()
+    mock_send.delay.assert_called_once()
 
     db_session.refresh(first_pending)
     # still only one pending row for the email, but state has been refreshed
@@ -63,13 +63,14 @@ def test_register_existing_pending_user_reissues_otp(client, db_session):
 
 
 def test_register_email_send_failure_does_not_break_request(client):
-    with patch("app.routers.auth.send_verification_email", side_effect=Exception("SMTP down")):
+    with patch("app.routers.auth.send_verification_email_task.delay", side_effect=Exception("Broker down")):
         response = client.post(
             "/register",
             json={"email": "resilient@test.com", "username": "resilientuser", "password": "securepass123"},
         )
 
     assert response.status_code == 201
+
 
 
 def test_register_invalid_email_format_rejected(client):
@@ -102,7 +103,7 @@ def test_register_missing_password_rejected(client):
 
 
 def test_register_otp_daily_limit_enforced(client, db_session):
-    with patch("app.routers.auth.send_verification_email"):
+    with patch("app.routers.auth.send_verification_email_task"):
         for _ in range(5):
             resp = client.post(
                 "/register",
@@ -119,7 +120,7 @@ def test_register_otp_daily_limit_enforced(client, db_session):
 
 
 def test_register_otp_limit_resets_after_24_hours(client, db_session):
-    with patch("app.routers.auth.send_verification_email"):
+    with patch("app.routers.auth.send_verification_email_task"):
         client.post("/register", json={"email": "reset24h@test.com", "username": "reset24huser", "password": "securepass123"})
 
     pending = db_session.query(PendingUser).filter(PendingUser.email == "reset24h@test.com").first()
@@ -127,7 +128,7 @@ def test_register_otp_limit_resets_after_24_hours(client, db_session):
     pending.otp_window_start = datetime.now(timezone.utc) - timedelta(hours=25)
     db_session.commit()
 
-    with patch("app.routers.auth.send_verification_email"):
+    with patch("app.routers.auth.send_verification_email_task"):
         response = client.post(
             "/register", json={"email": "reset24h@test.com", "username": "reset24huser", "password": "securepass123"}
         )
@@ -140,18 +141,18 @@ def test_register_otp_limit_resets_after_24_hours(client, db_session):
 # ---------------------------------------------------------------------------
 
 def test_resend_otp_success(client, db_session):
-    with patch("app.routers.auth.send_verification_email"):
+    with patch("app.routers.auth.send_verification_email_task"):
         client.post("/register", json={"email": "resend@test.com", "username": "resenduser", "password": "securepass123"})
 
     pending = db_session.query(PendingUser).filter(PendingUser.email == "resend@test.com").first()
     old_otp = pending.otp_code
 
-    with patch("app.routers.auth.send_verification_email") as mock_send:
+    with patch("app.routers.auth.send_verification_email_task") as mock_send:
         response = client.post("/resend-otp", json={"email": "resend@test.com"})
 
     assert response.status_code == 200
     assert response.json() == {"message": "Verification code resent to your email"}
-    mock_send.assert_called_once()
+    mock_send.delay.assert_called_once()
 
     db_session.refresh(pending)
     # a new code should (almost always) differ; at minimum the endpoint succeeded
@@ -170,7 +171,7 @@ def test_resend_otp_invalid_email_format_rejected(client):
 
 
 def test_resend_otp_rate_limited_after_five_requests(client, db_session):
-    with patch("app.routers.auth.send_verification_email"):
+    with patch("app.routers.auth.send_verification_email_task"):
         client.post("/register", json={"email": "resendlimit@test.com", "username": "resendlimituser", "password": "securepass123"})
 
         for _ in range(4):
@@ -188,7 +189,7 @@ def test_resend_otp_rate_limited_after_five_requests(client, db_session):
 # ---------------------------------------------------------------------------
 
 def test_verify_with_correct_otp_creates_user(client, db_session):
-    with patch("app.routers.auth.send_verification_email"):
+    with patch("app.routers.auth.send_verification_email_task"):
         client.post("/register", json={"email": "verifyme@test.com", "username": "verifymeuser", "password": "securepass123"})
 
     pending = db_session.query(PendingUser).filter(PendingUser.email == "verifyme@test.com").first()
@@ -212,7 +213,7 @@ def test_verify_with_correct_otp_creates_user(client, db_session):
 
 
 def test_verify_with_wrong_otp_fails(client, db_session):
-    with patch("app.routers.auth.send_verification_email"):
+    with patch("app.routers.auth.send_verification_email_task"):
         client.post("/register", json={"email": "wrongotp@test.com", "username": "wrongotpuser", "password": "securepass123"})
 
     response = client.post("/verify", json={"email": "wrongotp@test.com", "otp_code": "000000"})
@@ -228,7 +229,7 @@ def test_verify_no_pending_registration_404(client):
 
 
 def test_verify_expired_otp_fails(client, db_session):
-    with patch("app.routers.auth.send_verification_email"):
+    with patch("app.routers.auth.send_verification_email_task"):
         client.post("/register", json={"email": "expired@test.com", "username": "expireduser", "password": "securepass123"})
 
     pending = db_session.query(PendingUser).filter(PendingUser.email == "expired@test.com").first()

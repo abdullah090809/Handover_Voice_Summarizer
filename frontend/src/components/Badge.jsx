@@ -25,3 +25,4 @@ export function HandoverStatusBadge({ status }) {
   const cls = status === 'complete' ? 'badge-active' : status === 'failed' ? 'badge-high' : 'badge-info';
   return <span className={`badge ${cls}`}>{handoverStatusLabel(status)}</span>;
 }
+

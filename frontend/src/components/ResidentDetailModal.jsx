@@ -99,3 +99,4 @@ export default function ResidentDetailModal({ resident, isManager, onClose, onCh
     </Modal>
   );
 }
+

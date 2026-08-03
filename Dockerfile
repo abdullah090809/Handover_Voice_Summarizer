@@ -34,4 +34,5 @@ COPY --chown=appuser:appuser . .
 USER appuser
 
 EXPOSE 8000
-CMD uvicorn app.main:app --host=0.0.0.0 --port=8000
+# Default CMD; overridden in compose.yaml with full gunicorn flags.
+CMD ["gunicorn", "app.main:app", "--worker-class", "uvicorn.workers.UvicornWorker", "--workers", "4", "--bind", "0.0.0.0:8000"]

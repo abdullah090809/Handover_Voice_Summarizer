@@ -7,10 +7,14 @@ from google import genai
 from google.genai import errors, types
 
 from app.cores.config import settings
+from app.cores.circuit_breaker import CircuitBreaker, CircuitOpenError
 
 logger = logging.getLogger(__name__)
 
 client = genai.Client(api_key=settings.gemini_api_key)
+
+# Circuit breaker: open after 3 consecutive Gemini failures, reset after 60s.
+_gemini_cb = CircuitBreaker(name="gemini", failure_threshold=3, reset_timeout=60.0)
 
 _SYSTEM_PROMPT = """You are a care home shift-handover assistant. You will be given a raw \
 transcript of a care worker's spoken handover note about a resident. The transcript may be \
@@ -127,7 +131,13 @@ def _call_gemini(transcript: str):
 
 
 def summarize_transcript(transcript: str) -> dict:
-    response = _call_gemini(transcript)
+    # If the Gemini circuit breaker is open, fail fast rather than queueing
+    # a call that is doomed to time out.
+    try:
+        response = _gemini_cb.call(_call_gemini, transcript)
+    except CircuitOpenError as e:
+        logger.error("Gemini circuit breaker is OPEN: %s", e)
+        raise GeminiSummarizationError(str(e)) from e
 
     if response.text is None:
         logger.error("Gemini returned no text content (possibly blocked or empty response)")
@@ -141,7 +151,24 @@ def summarize_transcript(transcript: str) -> dict:
         raw_text = raw_text.strip()
 
     try:
-        return json.loads(raw_text)
+        parsed = json.loads(raw_text)
     except json.JSONDecodeError:
         logger.exception("Gemini returned non-JSON output: %r", raw_text)
         raise
+
+    from pydantic import BaseModel, Field
+    from typing import List, Literal
+
+    class StructuredSummary(BaseModel):
+        resident_name: str | None = None
+        summary: str = Field(..., max_length=5000)
+        key_events: List[str] = Field(default_factory=list)
+        medications_given: List[str] = Field(default_factory=list)
+        incidents: List[str] = Field(default_factory=list)
+        follow_up_actions: List[str] = Field(default_factory=list)
+        mood_notes: str | None = None
+        urgency_flag: Literal["low", "medium", "high", "urgent"] = "low"
+
+    # Enforce Pydantic validation. Invalid schemas or injects raise ValidationError
+    validated = StructuredSummary.model_validate(parsed)
+    return validated.model_dump()

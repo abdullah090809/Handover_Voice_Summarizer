@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, 
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from app.cores.database import get_db
-from app.cores.security import get_current_user, hash_password, verify_password, require_manager
+from app.cores.security import get_current_user, hash_password, verify_password, require_manager, blocklist_token
 from app.models.user import User
 from app.schemas.user import (
     ChangePassword,
@@ -68,13 +68,6 @@ async def upload_profile_picture(
             detail="Only JPEG, PNG, or WEBP images are allowed",
         )
 
-    contents = await file.read()
-    if len(contents) > MAX_PROFILE_PICTURE_SIZE:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Image must be smaller than 5MB",
-        )
-
     os.makedirs(PROFILE_PICTURE_DIR, exist_ok=True)
 
     if current_user.profile_photo_url and current_user.profile_photo_url.startswith("/static/profile_pictures/"):
@@ -86,8 +79,19 @@ async def upload_profile_picture(
     filename = f"{current_user.id}_{uuid.uuid4().hex}.{ext}"
     filepath = os.path.join(PROFILE_PICTURE_DIR, filename)
 
+    size = 0
+    _CHUNK_SIZE = 1024 * 1024  # 1 MB chunk size
     with open(filepath, "wb") as f:
-        f.write(contents)
+        while chunk := await file.read(_CHUNK_SIZE):
+            size += len(chunk)
+            if size > MAX_PROFILE_PICTURE_SIZE:
+                f.close()
+                os.remove(filepath)
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Image must be smaller than 5MB",
+                )
+            f.write(chunk)
 
     current_user.profile_photo_url = f"/static/profile_pictures/{filename}"
     db.commit()
@@ -288,6 +292,8 @@ def deactivate_user(
     user.role = "deactivated"
     db.commit()
     db.refresh(user)
+    # Immediately revoke all active tokens for this user via Redis blocklist
+    blocklist_token(user.id)
     return user
 
 

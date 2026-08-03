@@ -112,3 +112,4 @@ function getPageNumbers(page, pageCount) {
 
   return pages;
 }
+

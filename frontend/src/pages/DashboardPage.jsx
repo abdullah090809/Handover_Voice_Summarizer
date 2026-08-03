@@ -43,7 +43,10 @@ export default function DashboardPage() {
       try {
         const [handoverData, residentData] = await Promise.all([handoverApi.list({ limit: 30 }), residentApi.list(false)]);
         if (cancelled) return;
-        setHandovers(handoverData);
+        // API returns a paginated object { results, total } — unwrap it here.
+        // The `?? handoverData` fallback keeps this working if the endpoint
+        // ever returns a bare array instead.
+        setHandovers(handoverData?.results ?? handoverData ?? []);
         setResidents(residentData);
         shiftApi.list().then((s) => !cancelled && setShifts(s)).catch(() => { });
         if (isManager) {
@@ -61,9 +64,13 @@ export default function DashboardPage() {
 
   const residentMap = useMemo(() => Object.fromEntries(residents.map((r) => [r.id, r.name])), [residents]);
 
-  const recentHandovers = handovers?.slice(0, 6) || [];
-  const urgentHandovers = (handovers || []).filter((n) => n.urgency_flag === 'high' || n.urgency_flag === 'urgent').slice(0, 5);
-  const followUps = (handovers || [])
+  // Defensive guards: never assume `handovers` is an array, even after the
+  // fetch-side fix above, in case the shape changes again upstream.
+  const safeHandovers = Array.isArray(handovers) ? handovers : [];
+
+  const recentHandovers = safeHandovers.slice(0, 6);
+  const urgentHandovers = safeHandovers.filter((n) => n.urgency_flag === 'high' || n.urgency_flag === 'urgent').slice(0, 5);
+  const followUps = safeHandovers
     .filter((n) => n.status === 'complete' && n.summary_json?.follow_up_actions?.length)
     .flatMap((n) => n.summary_json.follow_up_actions.map((action) => ({ action, note: n })))
     .slice(0, 6);
@@ -98,7 +105,7 @@ export default function DashboardPage() {
             <StatCard icon={Users} label="Active residents" value={activeResidents.length} tone="default" />
             <StatCard icon={TriangleAlert} label="Urgent handovers (recent)" value={urgentHandovers.length} tone="high" />
             <StatCard icon={Bell} label="Unread alerts" value={unreadAlerts} tone="medium" />
-            <StatCard icon={FileAudio} label="Handovers on record" value={handovers?.length ?? '—'} tone="info" />
+            <StatCard icon={FileAudio} label="Handovers on record" value={handovers !== null ? safeHandovers.length : '—'} tone="info" />
           </>
         ) : (
           <>
@@ -109,7 +116,7 @@ export default function DashboardPage() {
               tone={currentShift ? 'default' : 'info'}
             />
             <StatCard icon={Users} label="Active residents" value={activeResidents.length} tone="default" />
-            <StatCard icon={FileAudio} label="Your recent handovers" value={handovers?.length ?? '—'} tone="info" />
+            <StatCard icon={FileAudio} label="Your recent handovers" value={handovers !== null ? safeHandovers.length : '—'} tone="info" />
             <StatCard icon={ListChecks} label="Open follow-ups" value={followUps.length} tone="medium" />
           </>
         )}
@@ -120,7 +127,7 @@ export default function DashboardPage() {
           <div className="panel">
             <div className="panel-header">
               <h3>Recent handovers</h3>
-              <button className="panel-link" onClick={() => navigate('/handovers', { viewTransition: true })}>
+              <button className="panel-link" onClick={() => navigate('/handovers', {})}>
                 View all
               </button>
             </div>
@@ -152,7 +159,7 @@ export default function DashboardPage() {
             <div className="panel">
               <div className="panel-header">
                 <h3>Residents needing attention</h3>
-                <button className="panel-link" onClick={() => navigate('/residents', { viewTransition: true })}>
+                <button className="panel-link" onClick={() => navigate('/residents', {})}>
                   View residents
                 </button>
               </div>
@@ -220,7 +227,7 @@ export default function DashboardPage() {
                   </button>
                 )}
                 {isManager && (
-                  <button className="quick-action-btn" onClick={() => navigate('/residents', { viewTransition: true })}>
+                  <button className="quick-action-btn" onClick={() => navigate('/residents', {})}>
                     <Users />
                     <span className="quick-action-text">
                       <strong>Add resident</strong>
@@ -229,7 +236,7 @@ export default function DashboardPage() {
                   </button>
                 )}
                 {isManager && (
-                  <button className="quick-action-btn" onClick={() => navigate('/team', { viewTransition: true })}>
+                  <button className="quick-action-btn" onClick={() => navigate('/team', {})}>
                     <UserCog />
                     <span className="quick-action-text">
                       <strong>Manage team</strong>
@@ -238,7 +245,7 @@ export default function DashboardPage() {
                   </button>
                 )}
                 {!isManager && (
-                  <button className="quick-action-btn" onClick={() => navigate('/shifts', { viewTransition: true })}>
+                  <button className="quick-action-btn" onClick={() => navigate('/shifts', {})}>
                     <Clock3 />
                     <span className="quick-action-text">
                       <strong>Log a shift</strong>
@@ -246,7 +253,7 @@ export default function DashboardPage() {
                     </span>
                   </button>
                 )}
-                <button className="quick-action-btn" onClick={() => navigate('/residents', { viewTransition: true })}>
+                <button className="quick-action-btn" onClick={() => navigate('/residents', {})}>
                   <Users />
                   <span className="quick-action-text">
                     <strong>View residents</strong>
@@ -254,7 +261,7 @@ export default function DashboardPage() {
                   </span>
                 </button>
                 {isManager && (
-                  <button className="quick-action-btn" onClick={() => navigate('/notifications', { viewTransition: true })}>
+                  <button className="quick-action-btn" onClick={() => navigate('/notifications', {})}>
                     <Bell />
                     <span className="quick-action-text">
                       <strong>Review alerts</strong>
@@ -305,7 +312,7 @@ export default function DashboardPage() {
           onClose={() => setShowNewModal(false)}
           onSubmitted={() => {
             setShowNewModal(false);
-            handoverApi.list({ limit: 30 }).then(setHandovers);
+            handoverApi.list({ limit: 30 }).then((data) => setHandovers(data?.results ?? data ?? []));
           }}
         />
       )}

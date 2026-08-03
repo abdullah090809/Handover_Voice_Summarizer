@@ -96,19 +96,19 @@ export default function GlobalSearch() {
   function goToResident(r) {
     setOpen(false);
     closeMobile();
-    navigate('/residents', { state: { openResidentId: r.id }, viewTransition: true });
+    navigate('/residents', { state: { openResidentId: r.id }});
   }
 
   function goToTeam() {
     setOpen(false);
     closeMobile();
-    navigate('/team', { viewTransition: true });
+    navigate('/team', {});
   }
 
   function goToHandover(n) {
     setOpen(false);
     closeMobile();
-    navigate('/handovers', { state: { openHandoverId: n.id }, viewTransition: true });
+    navigate('/handovers', { state: { openHandoverId: n.id }});
   }
 
   const residentMap = React.useMemo(() => Object.fromEntries((residents || []).map((r) => [r.id, r.name])), [residents]);

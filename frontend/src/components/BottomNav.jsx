@@ -24,7 +24,6 @@ export default function BottomNav({ onOpenMore, moreActive, unreadCount }) {
         <NavLink
           key={tab.to}
           to={tab.to}
-          viewTransition
           className={({ isActive }) => `mobile-tabbar-item${isActive ? ' active' : ''}`}
         >
           <tab.icon size={21} />
@@ -46,3 +45,4 @@ export default function BottomNav({ onOpenMore, moreActive, unreadCount }) {
     </nav>
   );
 }
+

@@ -32,14 +32,21 @@ def test_http_exception_uses_custom_envelope(client, worker_auth_headers):
 
 
 def test_websocket_handovers_unauthenticated_rejected(client):
-    with pytest.raises(Exception):
-        with client.websocket_connect("/ws/handovers"):
-            pass
+    from starlette.websockets import WebSocketDisconnect
+    with pytest.raises(WebSocketDisconnect) as exc_info:
+        with client.websocket_connect("/ws/handovers") as websocket:
+            websocket.send_text('{"type": "auth", "token": ""}')
+            websocket.receive_text()
+    assert exc_info.value.code == 4001
 
 
 def test_websocket_handovers_authenticated(client, worker_token):
-    with client.websocket_connect(f"/ws/handovers?token={worker_token}") as websocket:
+    import json
+    with client.websocket_connect("/ws/handovers") as websocket:
+        websocket.send_text(json.dumps({"type": "auth", "token": worker_token}))
+        # connection stays open
         websocket.close()
+
 
 
 def test_cors_preflight_allows_any_origin(client):

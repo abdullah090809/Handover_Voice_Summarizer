@@ -27,7 +27,7 @@ from app.schemas.user import (
     UserOut,
     VerifyOTP,
 )
-from app.services.email import send_password_reset_email, send_verification_email
+from app.tasks import send_verification_email_task, send_password_reset_email_task
 
 router = APIRouter(tags=["Auth"])
 
@@ -107,9 +107,9 @@ def register(request: Request, user: UserCreate, db: Session = Depends(get_db)):
         db.commit()
 
     try:
-        send_verification_email(to_email=user.email, otp_code=otp_code)
+        send_verification_email_task.delay(to_email=user.email, otp_code=otp_code)
     except Exception as e:
-        logger.error(f"Failed to send verification email: {e}")
+        logger.error(f"Failed to queue verification email task: {e}")
 
     return {"message": "Verification code sent to your email"}
 
@@ -136,9 +136,9 @@ def resend_otp(request: Request, payload: ResendOTP, db: Session = Depends(get_d
     db.commit()
 
     try:
-        send_verification_email(to_email=payload.email, otp_code=otp_code)
+        send_verification_email_task.delay(to_email=payload.email, otp_code=otp_code)
     except Exception as e:
-        logger.error(f"Failed to send verification email: {e}")
+        logger.error(f"Failed to queue verification email task: {e}")
 
     return {"message": "Verification code resent to your email"}
 
@@ -214,9 +214,9 @@ def forgot_password(request: Request, payload: ForgotPassword, db: Session = Dep
         db.commit()
 
     try:
-        send_password_reset_email(to_email=payload.email, otp_code=otp_code)
+        send_password_reset_email_task.delay(to_email=payload.email, otp_code=otp_code)
     except Exception as e:
-        logger.error(f"Failed to send password reset email: {e}")
+        logger.error(f"Failed to queue password reset email task: {e}")
 
     return {"message": "If that email is registered, a reset code has been sent"}
 

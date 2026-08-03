@@ -53,3 +53,4 @@ export default function ResidentFormModal({ resident, onClose, onSaved }) {
     </Modal>
   );
 }
+

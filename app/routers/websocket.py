@@ -1,7 +1,7 @@
 import json
 import logging
 from typing import Dict
-from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
 from starlette.exceptions import HTTPException
 from app.cores.database import SessionLocal
 from app.cores.security import verify_access_token
@@ -17,7 +17,6 @@ class ConnectionManager:
         self.active_connections: Dict[WebSocket, str] = {}
 
     async def connect(self, websocket: WebSocket, role: str):
-        await websocket.accept()
         self.active_connections[websocket] = role
 
     def disconnect(self, websocket: WebSocket):
@@ -31,26 +30,44 @@ class ConnectionManager:
         except Exception:
             msg_type = None
 
-        disconnected = []
-        for connection, role in list(self.active_connections.items()):
+        import asyncio
+
+        async def send_to_conn(connection, role):
             if msg_type == "notification" and role != "manager":
-                continue
+                return None
             try:
                 await connection.send_text(message)
+                return None
             except Exception:
-                disconnected.append(connection)
+                return connection
 
-        for conn in disconnected:
-            self.disconnect(conn)
+        tasks = [
+            send_to_conn(connection, role)
+            for connection, role in list(self.active_connections.items())
+        ]
+        if tasks:
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for res in results:
+                if isinstance(res, WebSocket):
+                    self.disconnect(res)
 
 
 manager = ConnectionManager()
 
 
 @router.websocket("/handovers")
-async def websocket_endpoint(websocket: WebSocket, token: str = Query(None)):
-    if not token:
-        await websocket.close(code=4001, reason="Missing authentication token")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        # Expect auth message as the first message
+        auth_msg = await websocket.receive_text()
+        data = json.loads(auth_msg)
+        if data.get("type") != "auth" or not data.get("token"):
+            await websocket.close(code=4001, reason="Missing authentication token")
+            return
+        token = data["token"]
+    except Exception:
+        await websocket.close(code=4001, reason="Invalid authentication frame")
         return
 
     db = SessionLocal()
@@ -81,4 +98,3 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(None)):
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket)
-

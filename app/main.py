@@ -18,11 +18,18 @@ from app.cores.limiter import limiter
 from app.cores.redis_client import redis_client
 from app.cores.seed import seed_manager_account
 from app.routers import auth, handover, residents, shifts, user, websocket, notifications
+from app.models import audit_log  # noqa: F401 — ensures AuditLog is registered with Base
+from app.middleware.audit import AuditLogMiddleware
 
-logging.basicConfig(
-    level=os.getenv("LOG_LEVEL", "INFO"),
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+from pythonjsonlogger import jsonlogger
+
+logHandler = logging.StreamHandler()
+formatter = jsonlogger.JsonFormatter(
+    fmt="%(asctime)s %(levelname)s %(name)s %(message)s"
 )
+logHandler.setFormatter(formatter)
+logging.getLogger().handlers = [logHandler]
+logging.getLogger().setLevel(os.getenv("LOG_LEVEL", "INFO"))
 logger = logging.getLogger(__name__)
 
 
@@ -30,6 +37,7 @@ async def start_redis_ws_subscriber(manager):
     r = AsyncRedis(
         host=settings.redis_host,
         port=settings.redis_port,
+        password=settings.redis_password,
         decode_responses=True,
     )
     pubsub = r.pubsub()
@@ -70,6 +78,7 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # pyrefly: ignore [bad-argument-type]
+app.add_middleware(AuditLogMiddleware)
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):

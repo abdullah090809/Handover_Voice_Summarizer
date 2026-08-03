@@ -6,8 +6,6 @@ services:
       POSTGRES_USER: ${DATABASE_USERNAME}
       POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
       POSTGRES_DB: ${DATABASE_NAME}
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -19,15 +17,28 @@ services:
   redis:
     image: redis:7-alpine
     restart: always
-    ports:
-      - "6379:6379"
+    command: redis-server --requirepass ${REDIS_PASSWORD}
     volumes:
       - redis_data:/data
     healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
+      test: [ "CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping" ]
       interval: 5s
       timeout: 5s
       retries: 10
+
+  # Item 24: Alembic migrations as a separate one-shot service so startup
+  # failures in migration do not crash the api container restart loop.
+  migration:
+    build: .
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DATABASE_HOSTNAME: db
+    command: alembic upgrade head
 
   api:
     build: .
@@ -40,18 +51,35 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migration:
+        condition: service_completed_successfully
     env_file:
       - .env
     environment:
       DATABASE_HOSTNAME: db
       REDIS_HOST: redis
-    ports:
-      - "8000:8000"
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    # Item 23: no host port exposed; traffic reaches the API only through the
+    # Nginx frontend container which proxies /api/ → http://api:8000/
     volumes:
       - audio_uploads:/app/audio_uploads
       - whisper_models:/app/app/whisper_models
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    # Item 18: gunicorn with uvicorn workers (4 processes) for production stability
+    # Item 25: graceful shutdown via gunicorn default SIGTERM handling (30s timeout)
     command: >
-      sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+      gunicorn app.main:app
+      --worker-class uvicorn.workers.UvicornWorker
+      --workers 4
+      --bind 0.0.0.0:8000
+      --timeout 120
+      --graceful-timeout 30
+      --access-logfile -
+      --error-logfile -
     develop:
       watch:
         - action: sync
@@ -71,15 +99,24 @@ services:
         condition: service_healthy
       db:
         condition: service_healthy
+      migration:
+        condition: service_completed_successfully
     env_file:
       - .env
     environment:
       DATABASE_HOSTNAME: db
       REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
     volumes:
       - audio_uploads:/app/audio_uploads
       - whisper_models:/app/app/whisper_models
-    command: celery -A app.cores.celery_app.celery_app worker --loglevel=info --pool=threads -c 2
+    # Item 16: use prefork pool (-c 4) so Whisper tasks don't block the GIL
+    # Item 17: time.sleep() in Gemini retry is fine with prefork (separate OS processes)
+    command: >
+      celery -A app.cores.celery_app.celery_app worker
+      --loglevel=info
+      --pool=prefork
+      --concurrency=4
     develop:
       watch:
         - action: sync

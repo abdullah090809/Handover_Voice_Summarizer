@@ -21,3 +21,8 @@ class HandoverNoteOut(BaseModel):
 class HandoverNoteAccepted(BaseModel):
     id: int
     status: str
+
+
+class HandoverNotePagination(BaseModel):
+    total: int
+    results: list[HandoverNoteOut]

@@ -12,7 +12,7 @@ from app.models.handover_note import HandoverNote
 from app.models.resident import Resident
 from app.models.shift import Shift
 from app.models.user import User
-from app.schemas.handover_note import HandoverNoteAccepted, HandoverNoteOut
+from app.schemas.handover_note import HandoverNoteAccepted, HandoverNoteOut, HandoverNotePagination
 from app.tasks import process_handover_note
 
 logger = logging.getLogger(__name__)
@@ -76,6 +76,20 @@ def _save_upload_to_tempfile(audio: UploadFile) -> str:
     else:
         tmp.close()
         return tmp.name
+
+
+import json
+from app.cores.redis_client import redis_client
+
+# ... (skip code in between to locate endpoints)
+
+def _invalidate_handover_cache():
+    try:
+        keys = redis_client.keys("handovers:list:*")
+        if keys:
+            redis_client.delete(*keys)
+    except Exception:
+        logger.exception("Failed to invalidate handover list cache")
 
 
 @router.post(
@@ -146,12 +160,13 @@ def transcribe_handover_audio(
     db.commit()
     db.refresh(new_note)
 
+    _invalidate_handover_cache()
     process_handover_note.delay(new_note.id, tmp_path)
 
     return new_note
 
 
-@router.get("/", response_model=list[HandoverNoteOut])
+@router.get("/", response_model=HandoverNotePagination)
 def list_handover_notes(
     resident_id: int | None = Query(None),
     urgency_flag: str | None = Query(None),
@@ -162,7 +177,28 @@ def list_handover_notes(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # Item 30: Include user_id in cache key so workers don't read each other's
+    # scoped result sets (managers use a separate key space).
+    cache_key = f"handovers:list:{current_user.id}:{current_user.role}:{resident_id}:{urgency_flag}:{date_from}:{date_to}:{skip}:{limit}"
+    try:
+        cached = redis_client.get(cache_key)
+        if cached:
+            return json.loads(cached)
+    except Exception:
+        logger.exception("Failed to fetch handover list from cache")
+
     query = db.query(HandoverNote)
+
+    # -----------------------------------------------------------------------
+    # Item 30: Per-resident access scoping
+    # Care workers may only see notes linked to residents they have a shift
+    # for.  Managers see the full set.
+    # -----------------------------------------------------------------------
+    if current_user.role != "manager":
+        query = query.join(Shift, HandoverNote.shift_id == Shift.id).filter(
+            Shift.worker_id == current_user.id
+        )
+
     if resident_id is not None:
         query = query.filter(HandoverNote.resident_id == resident_id)
     if urgency_flag is not None:
@@ -172,12 +208,20 @@ def list_handover_notes(
     if date_to is not None:
         query = query.filter(HandoverNote.created_at <= date_to)
 
-    return (
+    total = query.count()
+    results = (
         query.order_by(HandoverNote.created_at.desc())
         .offset(skip)
         .limit(limit)
         .all()
     )
+    response_data = {"total": total, "results": [HandoverNoteOut.model_validate(r).model_dump(mode="json") for r in results]}
+    try:
+        redis_client.setex(cache_key, 10, json.dumps(response_data))  # Cache for 10 seconds
+    except Exception:
+        logger.exception("Failed to write handover list to cache")
+
+    return response_data
 
 
 @router.get("/{id}", response_model=HandoverNoteOut)
@@ -192,6 +236,16 @@ def get_handover_note(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Handover note with id {id} not found",
         )
+    # Item 30: care workers can only access notes for shifts they own
+    if current_user.role != "manager":
+        shift = db.query(Shift).filter(
+            Shift.id == note.shift_id, Shift.worker_id == current_user.id
+        ).first()
+        if shift is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have access to this handover note",
+            )
     return note
 
 
@@ -216,4 +270,5 @@ def delete_handover_note(
 
     db.delete(note)
     db.commit()
+    _invalidate_handover_cache()
     return None

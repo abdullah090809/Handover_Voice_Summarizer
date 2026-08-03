@@ -35,7 +35,7 @@ export default function ProfileDetailsPage() {
 
     return (
         <>
-            <button type="button" className="auth-back" style={{ marginBottom: 'var(--space-2)' }} onClick={() => navigate('/profile', { viewTransition: true })}>
+            <button type="button" className="auth-back" style={{ marginBottom: 'var(--space-2)' }} onClick={() => navigate('/profile', {})}>
                 <ArrowLeft /> Back to profile
             </button>
 
@@ -58,18 +58,20 @@ export default function ProfileDetailsPage() {
                             <div className="profile-completion-icon">
                                 <Sparkles size={17} />
                             </div>
-                            <div>
+                            <div className="profile-completion-top-text">
                                 <strong>Your profile is {completionPct}% complete</strong>
                                 <p>
                                     Add your {missingFields.length > 0 ? missingFields.join(', ') : 'photo'} so your team recognizes you on handovers and shifts.
                                 </p>
                             </div>
-                            <button className="btn btn-primary btn-sm" onClick={() => setShowEditModal(true)}>
-                                Complete profile
-                            </button>
                         </div>
                         <div className="progress-track">
                             <div className="progress-fill" style={{ width: `${completionPct}%` }} />
+                        </div>
+                        <div className="profile-completion-actions">
+                            <button className="btn btn-primary btn-sm" onClick={() => setShowEditModal(true)}>
+                                Complete profile
+                            </button>
                         </div>
                     </div>
                 </div>

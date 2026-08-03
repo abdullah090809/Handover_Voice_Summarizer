@@ -1,5 +1,6 @@
 import logging
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.cores.config import settings
@@ -20,8 +21,12 @@ def seed_manager_account():
         existing_email = db.query(User).filter(User.email == settings.seed_manager_email).first()
         if existing_email:
             logger.info(f"Promoting existing user {settings.seed_manager_email} to manager")
-            existing_email.role = "manager"  # pyrefly: ignore [bad-assignment]
-            db.commit()
+            try:
+                existing_email.role = "manager"  # pyrefly: ignore [bad-assignment]
+                db.commit()
+            except IntegrityError:
+                db.rollback()
+                logger.info("Manager promotion lost race to another worker — skipping")
             return
 
         manager = User(
@@ -31,5 +36,9 @@ def seed_manager_account():
             role="manager",  # pyrefly: ignore [bad-assignment]
         )
         db.add(manager)
-        db.commit()
-        logger.info(f"Seeded manager account: {settings.seed_manager_email}")
+        try:
+            db.commit()
+            logger.info(f"Seeded manager account: {settings.seed_manager_email}")
+        except IntegrityError:
+            db.rollback()
+            logger.info("Manager account seed lost race to another worker — skipping")

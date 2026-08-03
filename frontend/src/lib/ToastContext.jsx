@@ -70,3 +70,4 @@ export function useToast() {
   if (!ctx) throw new Error('useToast must be used within ToastProvider');
   return ctx.showToast;
 }
+

@@ -10,13 +10,32 @@ from app.models.handover_note import HandoverNote
 from app.models.notification import Notification
 from app.models.resident import Resident
 from app.models.user import User
-from app.services.email import send_urgent_handover_email
+from app.services.email import send_urgent_handover_email, send_verification_email, send_password_reset_email
 from app.services.summarizer import summarize_transcript
 from app.services.transcription import transcribe_audio
 
 logger = logging.getLogger(__name__)
 
 WS_CHANNEL = "ws_broadcast"
+
+
+@celery_app.task
+def send_verification_email_task(to_email: str, otp_code: str) -> None:
+    try:
+        send_verification_email(to_email, otp_code)
+    except Exception as e:
+        logger.error(f"Async verification email sending failed: {e}")
+        raise
+
+
+@celery_app.task
+def send_password_reset_email_task(to_email: str, otp_code: str) -> None:
+    try:
+        send_password_reset_email(to_email, otp_code)
+    except Exception as e:
+        logger.error(f"Async password reset email sending failed: {e}")
+        raise
+
 
 
 def _publish_ws(event: dict) -> None:
@@ -42,6 +61,8 @@ def _is_quota_error(exc: Exception) -> bool:
 
 @celery_app.task(
     bind=True,
+    acks_late=True,          # only ack after the task completes; a worker restart mid-job will
+                             # re-queue the task from the broker rather than silently losing it.
     autoretry_for=(Exception,),
     retry_backoff=True,
     retry_backoff_max=300,

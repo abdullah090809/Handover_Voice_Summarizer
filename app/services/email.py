@@ -5,11 +5,15 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 from app.cores.config import settings
+from app.cores.circuit_breaker import CircuitBreaker, CircuitOpenError
 
 logger = logging.getLogger(__name__)
 
 SMTP_HOST = "smtp.gmail.com"
 SMTP_PORT = 587
+
+# Circuit breaker: open after 5 consecutive SMTP failures, reset after 120s.
+_smtp_cb = CircuitBreaker(name="smtp", failure_threshold=5, reset_timeout=120.0)
 
 
 def _send_email(to_email: str, subject: str, html_body: str) -> None:
@@ -19,10 +23,17 @@ def _send_email(to_email: str, subject: str, html_body: str) -> None:
     msg["To"] = to_email
     msg.attach(MIMEText(html_body, "html"))
 
-    with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
-        server.starttls()
-        server.login(settings.gmail_smtp_user, settings.gmail_smtp_password)
-        server.sendmail(settings.gmail_smtp_user, to_email, msg.as_string())
+    def _do_send():
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            server.starttls()
+            server.login(settings.gmail_smtp_user, settings.gmail_smtp_password)
+            server.sendmail(settings.gmail_smtp_user, to_email, msg.as_string())
+
+    try:
+        _smtp_cb.call(_do_send)
+    except CircuitOpenError as e:
+        logger.error("SMTP circuit breaker is OPEN — email to %s dropped: %s", to_email, e)
+        raise
 
 
 def send_verification_email(to_email: str, otp_code: str):

@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     seed_manager_username: str = "manager"
     redis_host: str = "redis"
     redis_port: int = 6379
+    redis_password: str | None = None
     gmail_smtp_user: str
     gmail_smtp_password: str
 

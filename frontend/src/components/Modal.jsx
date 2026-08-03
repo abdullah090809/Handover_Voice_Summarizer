@@ -48,3 +48,4 @@ export default function Modal({ open, onClose, title, subtitle, size = 'md', chi
     </div>
   );
 }
+

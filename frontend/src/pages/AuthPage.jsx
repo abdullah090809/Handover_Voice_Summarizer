@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Mail, Lock, Hash, ArrowRight, Stethoscope, AlertCircle, CheckCircle2, ArrowLeft, UserRound, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext.jsx';
 import { authApi, ApiError } from '../lib/api.js';
-import { Field, IconInput } from '../components/Field.jsx';
+import { Field, IconInput, OtpBoxInput } from '../components/Field.jsx';
 import { useTurnstile } from '../lib/useTurnstile.js';
 
 const VIEWS = ['login', 'register', 'verify', 'forgot', 'reset'];
@@ -298,18 +298,7 @@ function VerifyForm({ goTo, prefillEmail }) {
           <IconInput icon={Mail} id="verify-email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
         </Field>
         <Field label="Verification code" htmlFor="verify-otp">
-          <IconInput
-            icon={Hash}
-            id="verify-otp"
-            type="text"
-            inputMode="numeric"
-            pattern="\d{6}"
-            maxLength={6}
-            required
-            className="otp-input"
-            value={otp}
-            onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-          />
+          <OtpBoxInput id="verify-otp" length={6} value={otp} onChange={setOtp} autoFocus />
         </Field>
 
         {error && (
@@ -425,18 +414,7 @@ function ResetForm({ goTo, prefillEmail }) {
           <IconInput icon={Mail} id="reset-email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
         </Field>
         <Field label="Reset code" htmlFor="reset-otp">
-          <IconInput
-            icon={Hash}
-            id="reset-otp"
-            type="text"
-            inputMode="numeric"
-            pattern="\d{6}"
-            maxLength={6}
-            required
-            className="otp-input"
-            value={otp}
-            onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-          />
+          <OtpBoxInput id="reset-otp" length={6} value={otp} onChange={setOtp} />
         </Field>
         <PasswordField
           id="reset-password"

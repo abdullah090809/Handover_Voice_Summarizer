@@ -389,15 +389,13 @@ def test_deactivate_as_worker_forbidden(client, worker_auth_headers, test_manage
 def test_deactivated_user_token_still_authenticates_but_loses_role_permissions(
     client, manager_auth_headers, test_user
 ):
-    """Deactivation doesn't revoke existing JWTs (no server-side session
-    store), but the user's new role should no longer pass require_manager
-    or role-specific checks."""
+    """Deactivation immediately revokes existing JWTs via the Redis blocklist."""
     headers = auth_headers_for(test_user)
     client.patch(f"/users/{test_user.id}/deactivate", headers=manager_auth_headers)
 
     me_resp = client.get("/users/me", headers=headers)
-    assert me_resp.status_code == 200
-    assert me_resp.json()["role"] == "deactivated"
+    assert me_resp.status_code == 401
+
 
 
 # ---------------------------------------------------------------------------
@@ -452,11 +450,11 @@ def test_manager_reset_password_as_worker_forbidden(client, worker_auth_headers,
 # ---------------------------------------------------------------------------
 
 def test_forgot_password_existing_user_sends_email(client, test_user, db_session):
-    with patch("app.routers.auth.send_password_reset_email") as mock_send:
+    with patch("app.routers.auth.send_password_reset_email_task") as mock_send:
         response = client.post("/forgot-password", json={"email": test_user.email})
 
     assert response.status_code == 200
-    mock_send.assert_called_once()
+    mock_send.delay.assert_called_once()
 
     reset = db_session.query(PasswordReset).filter(PasswordReset.email == test_user.email).first()
     assert reset is not None
@@ -464,18 +462,18 @@ def test_forgot_password_existing_user_sends_email(client, test_user, db_session
 
 
 def test_forgot_password_nonexistent_email_returns_generic_message(client):
-    with patch("app.routers.auth.send_password_reset_email") as mock_send:
+    with patch("app.routers.auth.send_password_reset_email_task") as mock_send:
         response = client.post("/forgot-password", json={"email": "doesnotexist@test.com"})
 
     assert response.status_code == 200
     assert "If that email is registered" in response.json()["message"]
-    mock_send.assert_not_called()
+    mock_send.delay.assert_not_called()
 
 
 def test_forgot_password_does_not_leak_existence_via_status_code(client, test_user):
     """Both existing and nonexistent emails must return identical status
     codes/messages so the endpoint can't be used to enumerate accounts."""
-    with patch("app.routers.auth.send_password_reset_email"):
+    with patch("app.routers.auth.send_password_reset_email_task"):
         existing_resp = client.post("/forgot-password", json={"email": test_user.email})
     missing_resp = client.post("/forgot-password", json={"email": "nobody@test.com"})
 
@@ -484,7 +482,7 @@ def test_forgot_password_does_not_leak_existence_via_status_code(client, test_us
 
 
 def test_forgot_password_rate_limited_after_five_requests(client, test_user):
-    with patch("app.routers.auth.send_password_reset_email"):
+    with patch("app.routers.auth.send_password_reset_email_task"):
         for _ in range(5):
             resp = client.post("/forgot-password", json={"email": test_user.email})
             assert resp.status_code == 200
@@ -495,7 +493,7 @@ def test_forgot_password_rate_limited_after_five_requests(client, test_user):
 
 
 def test_reset_password_with_correct_otp_succeeds(client, test_user, db_session):
-    with patch("app.routers.auth.send_password_reset_email"):
+    with patch("app.routers.auth.send_password_reset_email_task"):
         client.post("/forgot-password", json={"email": test_user.email})
 
     reset = db_session.query(PasswordReset).filter(PasswordReset.email == test_user.email).first()
@@ -520,7 +518,7 @@ def test_reset_password_with_correct_otp_succeeds(client, test_user, db_session)
 
 
 def test_reset_password_with_wrong_otp_fails(client, test_user):
-    with patch("app.routers.auth.send_password_reset_email"):
+    with patch("app.routers.auth.send_password_reset_email_task"):
         client.post("/forgot-password", json={"email": test_user.email})
 
     response = client.post(
@@ -543,7 +541,7 @@ def test_reset_password_no_pending_reset_fails(client, test_user):
 
 
 def test_reset_password_expired_otp_fails(client, test_user, db_session):
-    with patch("app.routers.auth.send_password_reset_email"):
+    with patch("app.routers.auth.send_password_reset_email_task"):
         client.post("/forgot-password", json={"email": test_user.email})
 
     reset = db_session.query(PasswordReset).filter(PasswordReset.email == test_user.email).first()
@@ -560,7 +558,7 @@ def test_reset_password_expired_otp_fails(client, test_user, db_session):
 
 
 def test_reset_password_new_password_too_short_rejected(client, test_user):
-    with patch("app.routers.auth.send_password_reset_email"):
+    with patch("app.routers.auth.send_password_reset_email_task"):
         client.post("/forgot-password", json={"email": test_user.email})
 
     response = client.post(
@@ -571,7 +569,7 @@ def test_reset_password_new_password_too_short_rejected(client, test_user):
 
 
 def test_reset_password_otp_cannot_be_reused(client, test_user, db_session):
-    with patch("app.routers.auth.send_password_reset_email"):
+    with patch("app.routers.auth.send_password_reset_email_task"):
         client.post("/forgot-password", json={"email": test_user.email})
 
     reset = db_session.query(PasswordReset).filter(PasswordReset.email == test_user.email).first()

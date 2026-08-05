@@ -1,0 +1,14 @@
+              List of relations
+ Schema |      Name       | Type  |  Owner   
+--------+-----------------+-------+----------
+ public | alembic_version | table | postgres
+ public | audit_logs      | table | postgres
+ public | handover_notes  | table | postgres
+ public | notifications   | table | postgres
+ public | password_resets | table | postgres
+ public | pending_users   | table | postgres
+ public | residents       | table | postgres
+ public | shifts          | table | postgres
+ public | users           | table | postgres
+(9 rows)
+

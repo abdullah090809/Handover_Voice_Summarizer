@@ -12,7 +12,7 @@ from app.models.handover_note import HandoverNote
 from app.models.resident import Resident
 from app.models.shift import Shift
 from app.models.user import User
-from app.schemas.handover_note import HandoverNoteAccepted, HandoverNoteOut, HandoverNotePagination
+from app.schemas.handover_note import FollowUpResolution, HandoverNoteAccepted, HandoverNoteOut, HandoverNotePagination
 from app.tasks import process_handover_note
 
 logger = logging.getLogger(__name__)
@@ -81,7 +81,6 @@ def _save_upload_to_tempfile(audio: UploadFile) -> str:
 import json
 from app.cores.redis_client import redis_client
 
-# ... (skip code in between to locate endpoints)
 
 def _invalidate_handover_cache():
     try:
@@ -90,6 +89,26 @@ def _invalidate_handover_cache():
             redis_client.delete(*keys)
     except Exception:
         logger.exception("Failed to invalidate handover list cache")
+
+
+def _attach_submitters(db: Session, notes: list[HandoverNote]) -> None:
+    """Attaches a transient `submitted_by` attribute (the care worker who
+    recorded the handover, via shift.worker_id) to each note in-place, so
+    HandoverNoteOut can pick it up. One query total, no N+1: batches the
+    shift ids from the given notes into a single join.
+    """
+    shift_ids = {n.shift_id for n in notes}
+    if not shift_ids:
+        return
+    rows = (
+        db.query(Shift.id, User)
+        .join(User, Shift.worker_id == User.id)
+        .filter(Shift.id.in_(shift_ids))
+        .all()
+    )
+    worker_by_shift = {shift_id: worker for shift_id, worker in rows}
+    for note in notes:
+        note.submitted_by = worker_by_shift.get(note.shift_id)
 
 
 @router.post(
@@ -215,6 +234,7 @@ def list_handover_notes(
         .limit(limit)
         .all()
     )
+    _attach_submitters(db, results)
     response_data = {"total": total, "results": [HandoverNoteOut.model_validate(r).model_dump(mode="json") for r in results]}
     try:
         redis_client.setex(cache_key, 10, json.dumps(response_data))  # Cache for 10 seconds
@@ -246,6 +266,54 @@ def get_handover_note(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You do not have access to this handover note",
             )
+    _attach_submitters(db, [note])
+    return note
+
+
+@router.patch("/{id}/follow-ups", response_model=HandoverNoteOut)
+def set_follow_up_resolved(
+    id: int,
+    payload: FollowUpResolution,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Marks a single follow-up action (matched by its exact text from
+    summary_json.follow_up_actions) resolved or unresolved. Care workers may
+    only do this for their own shifts; managers can do it for any note."""
+    note = db.query(HandoverNote).filter(HandoverNote.id == id).first()
+    if not note:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Handover note with id {id} not found",
+        )
+    if current_user.role != "manager":
+        shift = db.query(Shift).filter(
+            Shift.id == note.shift_id, Shift.worker_id == current_user.id
+        ).first()
+        if shift is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have access to this handover note",
+            )
+
+    valid_actions = set((note.summary_json or {}).get("follow_up_actions") or [])
+    if payload.action not in valid_actions:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="That follow-up action was not found on this handover note",
+        )
+
+    resolved = set(note.resolved_follow_ups or [])
+    if payload.resolved:
+        resolved.add(payload.action)
+    else:
+        resolved.discard(payload.action)
+    # Reassign (not mutate in place) so SQLAlchemy detects the JSONB change.
+    note.resolved_follow_ups = list(resolved)
+    db.commit()
+    db.refresh(note)
+    _invalidate_handover_cache()
+    _attach_submitters(db, [note])
     return note
 
 

@@ -18,7 +18,7 @@ import ShiftsPage from './pages/ShiftsPage.jsx';
 import TeamPage from './pages/TeamPage.jsx';
 import NotificationsPage from './pages/NotificationsPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
-import ProfileDetailsPage from './pages/ProfileDetailsPage.jsx';
+import AuditPage from './pages/AuditPage.jsx';
 
 export default function App() {
   return (
@@ -65,7 +65,16 @@ export default function App() {
                     }
                   />
                   <Route path="/profile" element={<ProfilePage />} />
-                  <Route path="/profile/details" element={<ProfileDetailsPage />} />
+                  {/* Profile details was merged into /profile; keep old links/bookmarks working. */}
+                  <Route path="/profile/details" element={<Navigate to="/profile" replace />} />
+                  <Route
+                    path="/audit"
+                    element={
+                      <RequireManager>
+                        <AuditPage />
+                      </RequireManager>
+                    }
+                  />
                 </Route>
 
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />

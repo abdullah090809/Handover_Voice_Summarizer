@@ -19,6 +19,46 @@
   top: 0;
   height: 100vh;
   z-index: 40;
+  transition: width var(--duration-slow) var(--ease-standard);
+}
+
+/* Desktop collapsible rail. `--sidebar-width-collapsed` already existed as a
+   design token but nothing consumed it — the topbar toggle button rendered
+   in the markup but had no effect above 1024px. */
+@media (min-width: 1025px) {
+  .sidebar.collapsed {
+    width: var(--sidebar-width-collapsed);
+  }
+
+  .sidebar.collapsed .sidebar-brand-text,
+  .sidebar.collapsed .sidebar-link-label,
+  .sidebar.collapsed .sidebar-section-label,
+  .sidebar.collapsed .sidebar-user-info,
+  .sidebar.collapsed .sidebar-link-badge {
+    display: none;
+  }
+
+  .sidebar.collapsed .sidebar-brand {
+    justify-content: center;
+    padding-left: var(--space-2);
+    padding-right: var(--space-2);
+  }
+
+  .sidebar.collapsed .sidebar-link {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .sidebar.collapsed .sidebar-link.active::before {
+    left: 0;
+  }
+
+  .sidebar.collapsed .sidebar-user {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
 }
 
 .sidebar-close-btn {
@@ -178,6 +218,7 @@
 }
 
 .sidebar-footer {
+  position: relative;
   padding: var(--space-3);
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   flex-shrink: 0;
@@ -187,14 +228,30 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
+  width: 100%;
   padding: var(--space-2);
   border-radius: var(--radius-md);
+  border: none;
+  background: none;
   cursor: pointer;
+  text-align: left;
+  font: inherit;
   transition: background var(--duration-fast) var(--ease-standard);
 }
 
-.sidebar-user:hover {
-  background: rgba(255, 255, 255, 0.06);
+.sidebar-user:hover,
+.sidebar-user.open {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.sidebar-user:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--surface-dark), 0 0 0 4px var(--teal-400);
+}
+
+.sidebar-user .avatar {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.12);
+  flex-shrink: 0;
 }
 
 .sidebar-user-info {
@@ -215,6 +272,152 @@
 .sidebar-user-info span {
   font-size: var(--text-xs);
   color: var(--ink-300);
+}
+
+.sidebar-user-chevron {
+  flex-shrink: 0;
+  color: var(--ink-400);
+  transition: color var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard);
+}
+
+.sidebar-user:hover .sidebar-user-chevron,
+.sidebar-user.open .sidebar-user-chevron {
+  color: var(--ink-200);
+}
+
+/* ---- Profile dropdown menu ------------------------------------------- */
+.profile-menu {
+  position: absolute;
+  left: var(--space-3);
+  right: var(--space-3);
+  bottom: calc(100% + var(--space-2));
+  width: 240px;
+  min-width: calc(100% - var(--space-6));
+  background: var(--surface-dark-elevated);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-2);
+  z-index: 50;
+  animation: profile-menu-in var(--duration-base) var(--ease-standard);
+}
+
+@keyframes profile-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.profile-menu .divider {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.profile-menu-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2);
+}
+
+.profile-menu-header-info {
+  min-width: 0;
+}
+
+.profile-menu-header-info strong {
+  display: block;
+  font-size: var(--text-sm);
+  color: var(--white);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-menu-header-info span {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--ink-300);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  background: none;
+  border-radius: var(--radius-md);
+  color: var(--ink-100);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard);
+}
+
+.profile-menu-item svg {
+  flex-shrink: 0;
+  color: var(--ink-300);
+  transition: color var(--duration-fast) var(--ease-standard);
+}
+
+.profile-menu-item:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--white);
+}
+
+.profile-menu-item:hover svg {
+  color: var(--white);
+}
+
+.profile-menu-item-danger {
+  color: #f4a49e;
+}
+
+.profile-menu-item-danger svg {
+  color: #f4a49e;
+}
+
+.profile-menu-item-danger:hover {
+  background: rgba(181, 52, 43, 0.18);
+  color: #ffb4ad;
+}
+
+.profile-menu-item-danger:hover svg {
+  color: #ffb4ad;
+}
+
+.profile-menu-item-toggle .toggle-switch-visual {
+  width: 34px;
+  height: 20px;
+}
+
+.profile-menu-item-toggle .toggle-switch-visual::after {
+  width: 15px;
+  height: 15px;
+}
+
+.profile-menu-item-toggle .toggle-switch-visual.checked::after {
+  transform: translateX(14px);
+}
+
+/* Collapsed desktop rail: the trigger shrinks to just the avatar, but the
+   menu itself should still open at a comfortable readable width rather than
+   staying pinned to the 76px rail. */
+.sidebar.collapsed .profile-menu {
+  left: var(--space-2);
+  right: auto;
+  width: 240px;
 }
 
 /* ---- Main column ---------------------------------------------------------- */
@@ -240,8 +443,13 @@
   box-shadow: var(--shadow-xs);
 }
 
+/* Single toggle button, reused at every breakpoint: opens/closes the
+   mobile drawer below 1025px, collapses/expands the desktop rail at and
+   above it (see AppShell's toggleSidebar). Previously this was hidden
+   outright above 1024px, so the desktop collapse control had no way to
+   ever be reached even though the collapsed-width token existed. */
 .topbar-menu-btn {
-  display: none;
+  display: flex;
 }
 
 .topbar-mobile-brand {
@@ -476,6 +684,10 @@
     transform: translateX(0);
     visibility: visible;
     pointer-events: auto;
+    /* The fixed bottom tab bar (z-index 45, styles/mobile.css) otherwise
+       sits on top of the open drawer's bottom section on phones, hiding
+       the Account/profile row and stealing taps meant for the drawer. */
+    z-index: 48;
   }
 
   .topbar-menu-btn {

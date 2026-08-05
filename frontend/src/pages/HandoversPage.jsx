@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { Plus, FileAudio } from 'lucide-react';
 import { handoverApi, residentApi, shiftApi, ApiError } from '../lib/api.js';
 import { useAuth } from '../lib/AuthContext.jsx';
@@ -11,7 +11,15 @@ import HandoverDetailModal from '../components/HandoverDetailModal.jsx';
 import NewHandoverModal from '../components/NewHandoverModal.jsx';
 import { SkeletonGrid, EmptyState, ErrorState } from '../components/States.jsx';
 import Pagination from '../components/Pagination.jsx';
-import { usePagination } from '../lib/usePagination.js';
+
+// Handover notes are paginated server-side (see /handover GET: skip/limit +
+// a `total` count). Previously this page fetched a single page of up to 50
+// notes and treated that array's `.length` as if it were the grand total —
+// so "notes on record" silently under/over-reported the real count and
+// looked like it moved by odd amounts whenever the visible page changed.
+// Now the page number itself drives `skip`, and `total` always comes
+// straight from the API response.
+const PAGE_SIZE = 9;
 
 export default function HandoversPage() {
   const { isManager } = useAuth();
@@ -19,8 +27,13 @@ export default function HandoversPage() {
   const confirm = useConfirm();
   const { subscribe } = useLiveUpdates();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const [notes, setNotes] = useState(null);
+  const rawPage = parseInt(searchParams.get('page'), 10);
+  const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1;
+
+  const [notes, setNotes] = useState(null); // current page of results only
+  const [total, setTotal] = useState(0); // true record count from the API
   const [error, setError] = useState(null);
   const [residents, setResidents] = useState([]);
   const [shifts, setShifts] = useState([]);
@@ -29,14 +42,37 @@ export default function HandoversPage() {
   const [openNote, setOpenNote] = useState(null);
   const [showNewModal, setShowNewModal] = useState(false);
 
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  const setPage = useCallback(
+    (next) => {
+      setSearchParams(
+        (prev) => {
+          const params = new URLSearchParams(prev);
+          if (next <= 1) params.delete('page');
+          else params.set('page', String(next));
+          return params;
+        },
+        { replace: true, preventScrollReset: true }
+      );
+    },
+    [setSearchParams]
+  );
+
   const load = useCallback(async () => {
     setError(null);
     try {
       const [notesData, residentsData] = await Promise.all([
-        handoverApi.list({ urgency: urgencyFilter || undefined, residentId: residentFilter || undefined }),
+        handoverApi.list({
+          urgency: urgencyFilter || undefined,
+          residentId: residentFilter || undefined,
+          skip: (page - 1) * PAGE_SIZE,
+          limit: PAGE_SIZE,
+        }),
         residentApi.list(true),
       ]);
       setNotes(notesData.results);
+      setTotal(typeof notesData.total === 'number' ? notesData.total : notesData.results.length);
       setResidents(residentsData);
       if (!isManager) {
         shiftApi.list().then(setShifts).catch(() => setShifts([]));
@@ -44,7 +80,7 @@ export default function HandoversPage() {
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not load handover notes.');
     }
-  }, [urgencyFilter, residentFilter, isManager]);
+  }, [urgencyFilter, residentFilter, page, isManager]);
 
   useEffect(() => {
     load();
@@ -54,12 +90,28 @@ export default function HandoversPage() {
     if (event.type === 'handover_updated') load();
   }), [subscribe, load]);
 
+  // If the current page falls out of range (filters changed, a note was
+  // deleted, etc), snap back to the last valid page instead of showing an
+  // empty page or a stale-looking count.
   useEffect(() => {
-    if (location.state?.openHandoverId && notes) {
-      const n = notes.find((x) => x.id === location.state.openHandoverId);
-      if (n) setOpenNote(n);
-      window.history.replaceState({}, document.title);
+    if (page > pageCount) setPage(pageCount);
+  }, [page, pageCount, setPage]);
+
+  useEffect(() => {
+    const targetId = location.state?.openHandoverId;
+    if (!targetId || notes === null) return;
+    const found = notes.find((x) => x.id === targetId);
+    if (found) {
+      setOpenNote(found);
+    } else {
+      // The requested note isn't on the currently loaded page (server-side
+      // pagination only ever holds PAGE_SIZE notes in memory) — fetch it
+      // directly instead of silently failing to open it.
+      handoverApi.get(targetId).then(setOpenNote).catch(() => {
+        showToast('That handover note could not be found.', 'error');
+      });
     }
+    window.history.replaceState({}, document.title);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state, notes]);
 
@@ -83,16 +135,15 @@ export default function HandoversPage() {
   }
 
   const activeResidents = residents.filter((r) => r.status === 'active');
-  const { pageItems, page, pageCount, total, setPage, resetToFirstPage } = usePagination(notes || [], { pageSize: 9 });
 
   function handleUrgencyFilterChange(value) {
     setUrgencyFilter(value);
-    resetToFirstPage();
+    setPage(1);
   }
 
   function handleResidentFilterChange(value) {
     setResidentFilter(value);
-    resetToFirstPage();
+    setPage(1);
   }
 
   return (
@@ -152,7 +203,7 @@ export default function HandoversPage() {
       {notes !== null && notes.length > 0 && (
         <>
           <div className="card-grid">
-            {pageItems.map((note) => (
+            {notes.map((note) => (
               <HandoverCard
                 key={note.id}
                 note={note}
@@ -163,7 +214,7 @@ export default function HandoversPage() {
               />
             ))}
           </div>
-          <Pagination page={page} pageCount={pageCount} total={total} pageSize={9} onPageChange={setPage} itemLabel="handover notes" />
+          <Pagination page={page} pageCount={pageCount} total={total} pageSize={PAGE_SIZE} onPageChange={setPage} itemLabel="handover notes" />
         </>
       )}
 
@@ -175,7 +226,7 @@ export default function HandoversPage() {
 
       {openNote && (
         <HandoverDetailModal
-          note={notes.find((n) => n.id === openNote.id) || openNote}
+          note={notes?.find((n) => n.id === openNote.id) || openNote}
           residentName={residentMap[openNote.resident_id]}
           canDelete={isManager}
           onClose={() => setOpenNote(null)}

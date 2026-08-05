@@ -27,6 +27,11 @@ class HandoverNote(Base):
     urgency_flag = Column(String, nullable=True, index=True)
     status = Column(String, nullable=False, server_default="pending")
     error_message = Column(String, nullable=True)
+    # Follow-up action strings (verbatim, matched against summary_json's
+    # follow_up_actions list) that a worker or manager has marked done.
+    # AI-suggested follow-ups start unresolved the moment processing
+    # completes — this is what lets "Open follow-ups" actually shrink.
+    resolved_follow_ups = Column(JSONB, nullable=False, server_default="[]")
     created_at = Column(
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
     )

@@ -1,5 +1,5 @@
 [tool.pyrefly]
-python_version = "3.13.14"
+python_version = "3.13"
 
 [tool.pyrefly.errors]
 bad-assignment = false

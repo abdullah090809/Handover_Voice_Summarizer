@@ -475,6 +475,20 @@ body {
     justify-content: flex-end;
     border-top: 1px solid var(--border-subtle);
   }
+
+  /* The audit log's "Action" cell holds an icon + multi-line sentence, not
+     a single value — like "Team member" above, let it take the full card
+     width and keep its own internal layout instead of being split into a
+     label/value pair and right-aligned. */
+  table.data-table td[data-label='Action'] {
+    justify-content: flex-start;
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  table.data-table td[data-label='Action']::before {
+    display: none;
+  }
 }
 
 /* ==========================================================================

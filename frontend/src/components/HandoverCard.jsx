@@ -1,5 +1,5 @@
 import React from 'react';
-import { Trash2, Clock3, Loader2, TriangleAlert } from 'lucide-react';
+import { Trash2, Clock3, Loader2, TriangleAlert, UserRound } from 'lucide-react';
 import { UrgencyBadge, HandoverStatusBadge } from './Badge.jsx';
 import { formatRelative } from '../lib/format.js';
 
@@ -7,6 +7,7 @@ export default function HandoverCard({ note, residentName, canDelete, onOpen, on
   const urgency = note.urgency_flag || 'low';
   const isPending = note.status === 'pending' || note.status === 'processing';
   const isFailed = note.status === 'failed';
+  const submitterName = note.submitted_by?.name?.trim() || note.submitted_by?.username;
 
   return (
     <div
@@ -48,6 +49,11 @@ export default function HandoverCard({ note, residentName, canDelete, onOpen, on
         <span className="meta-chip">
           <Clock3 /> {formatRelative(note.created_at)}
         </span>
+        {submitterName && (
+          <span className="meta-chip">
+            <UserRound /> {submitterName}
+          </span>
+        )}
         {canDelete && (
           <button
             className="icon-btn"

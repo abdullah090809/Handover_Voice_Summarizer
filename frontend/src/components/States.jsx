@@ -3,10 +3,18 @@ import { Inbox, AlertCircle } from 'lucide-react';
 import { initials } from '../lib/format.js';
 
 export function Avatar({ text, size = 'md', src }) {
-  if (src) {
+  const [failed, setFailed] = React.useState(false);
+
+  // Reset the failure flag whenever a new src comes in (e.g. after a fresh
+  // upload) so a previous load failure doesn't stick around forever.
+  React.useEffect(() => {
+    setFailed(false);
+  }, [src]);
+
+  if (src && !failed) {
     return (
       <div className={`avatar avatar-${size} avatar-photo`}>
-        <img src={src} alt="" />
+        <img src={src} alt="" onError={() => setFailed(true)} />
       </div>
     );
   }

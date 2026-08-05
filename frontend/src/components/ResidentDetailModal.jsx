@@ -14,7 +14,7 @@ export default function ResidentDetailModal({ resident, isManager, onClose, onCh
     let cancelled = false;
     handoverApi
       .list({ residentId: resident.id, limit: 30 })
-      .then((data) => !cancelled && setNotes(data))
+      .then((data) => !cancelled && setNotes(data?.results ?? data ?? []))
       .catch((err) => !cancelled && setError(err instanceof ApiError ? err.message : 'Could not load history.'));
     return () => {
       cancelled = true;
@@ -99,4 +99,3 @@ export default function ResidentDetailModal({ resident, isManager, onClose, onCh
     </Modal>
   );
 }
-

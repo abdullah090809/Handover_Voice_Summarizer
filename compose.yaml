@@ -72,14 +72,7 @@ services:
     # Item 18: gunicorn with uvicorn workers (4 processes) for production stability
     # Item 25: graceful shutdown via gunicorn default SIGTERM handling (30s timeout)
     command: >
-      gunicorn app.main:app
-      --worker-class uvicorn.workers.UvicornWorker
-      --workers 4
-      --bind 0.0.0.0:8000
-      --timeout 120
-      --graceful-timeout 30
-      --access-logfile -
-      --error-logfile -
+      gunicorn app.main:app --worker-class uvicorn.workers.UvicornWorker --workers 4 --bind 0.0.0.0:8000 --timeout 120 --graceful-timeout 30 --access-logfile - --error-logfile -
     develop:
       watch:
         - action: sync
@@ -110,13 +103,18 @@ services:
     volumes:
       - audio_uploads:/app/audio_uploads
       - whisper_models:/app/app/whisper_models
-    # Item 16: use prefork pool (-c 4) so Whisper tasks don't block the GIL
-    # Item 17: time.sleep() in Gemini retry is fine with prefork (separate OS processes)
+    # Item 16: prefork pool so Whisper tasks don't block the GIL.
+    # Concurrency capped at 1 (was 4): each forked worker process loads its
+    # OWN copy of the Whisper "turbo" model into memory on first task
+    # (get_whisper_model() caches per-process, not globally). Two handovers
+    # arriving close together triggered two simultaneous full model loads,
+    # which exhausted host memory and got a worker SIGKILL'd by the OOM
+    # killer, freezing the whole app for ~2.5 minutes. Concurrency=1 means
+    # handovers process one at a time (slower under load, but no crash).
+    # If you want true parallel transcription, raise Docker Desktop's memory
+    # allocation first, then raise this back up.
     command: >
-      celery -A app.cores.celery_app.celery_app worker
-      --loglevel=info
-      --pool=prefork
-      --concurrency=4
+      celery -A app.cores.celery_app.celery_app worker --loglevel=info --pool=prefork --concurrency=1
     develop:
       watch:
         - action: sync

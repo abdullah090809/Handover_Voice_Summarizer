@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
-import { Trash2, Download, ChevronDown, Pill, TriangleAlert, ListChecks, Smile, Clock3, FileText } from 'lucide-react';
+import { Trash2, Download, ChevronDown, Pill, TriangleAlert, ListChecks, Smile, Clock3, FileText, UserRound } from 'lucide-react';
 import Modal from './Modal.jsx';
 import { UrgencyBadge, HandoverStatusBadge } from './Badge.jsx';
+import { Avatar } from './States.jsx';
 import { formatDateTime } from '../lib/format.js';
+import { resolveFileUrl } from '../lib/api.js';
 
 export default function HandoverDetailModal({ note, residentName, canDelete, onClose, onDelete }) {
   const [showTranscript, setShowTranscript] = useState(false);
   if (!note) return null;
   const s = note.summary_json || {};
+  const submitterName = note.submitted_by?.name?.trim() || note.submitted_by?.username;
 
   function exportJson() {
     const blob = new Blob([JSON.stringify(note, null, 2)], { type: 'application/json' });
@@ -73,6 +76,14 @@ export default function HandoverDetailModal({ note, residentName, canDelete, onC
     >
       <div className="handover-meta-row">
         {note.status === 'complete' ? <UrgencyBadge urgency={note.urgency_flag} /> : <HandoverStatusBadge status={note.status} />}
+        {submitterName && (
+          <span className="handover-submitted-by">
+            <Avatar text={submitterName} size="sm" src={resolveFileUrl(note.submitted_by?.profile_photo_url)} />
+            <span>
+              <UserRound size={11} /> Submitted by <strong>{submitterName}</strong>
+            </span>
+          </span>
+        )}
       </div>
 
       {note.status !== 'complete' && (

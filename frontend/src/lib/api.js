@@ -172,8 +172,9 @@ export const shiftApi = {
 // Handover notes
 // ---------------------------------------------------------------------------
 export const handoverApi = {
-  list: ({ residentId, urgency, dateFrom, dateTo, limit = 50 } = {}) => {
+  list: ({ residentId, urgency, dateFrom, dateTo, skip = 0, limit = 50 } = {}) => {
     const qs = new URLSearchParams();
+    qs.set('skip', String(skip));
     qs.set('limit', String(limit));
     if (residentId) qs.set('resident_id', residentId);
     if (urgency) qs.set('urgency_flag', urgency);
@@ -183,6 +184,8 @@ export const handoverApi = {
   },
   get: (id) => parse(request(`/handover/${id}`)),
   remove: (id) => parse(request(`/handover/${id}`, { method: 'DELETE' })),
+  setFollowUpResolved: (id, action, resolved) =>
+    parse(request(`/handover/${id}/follow-ups`, { method: 'PATCH', body: { action, resolved } })),
   submit: (shiftId, residentId, audioBlob, filename) => {
     const formData = new FormData();
     formData.append('shift_id', shiftId);
@@ -190,6 +193,25 @@ export const handoverApi = {
     formData.append('audio', audioBlob, filename);
     return parse(request('/handover/transcribe', { method: 'POST', body: formData }));
   },
+};
+
+// ---------------------------------------------------------------------------
+// Audit log (manager only)
+// ---------------------------------------------------------------------------
+export const auditApi = {
+  list: ({ skip = 0, limit = 20, method, userId, path, statusCode, dateFrom, dateTo } = {}) => {
+    const qs = new URLSearchParams();
+    qs.set('skip', String(skip));
+    qs.set('limit', String(limit));
+    if (method) qs.set('method', method);
+    if (userId) qs.set('user_id', userId);
+    if (path) qs.set('path', path);
+    if (statusCode) qs.set('status_code', statusCode);
+    if (dateFrom) qs.set('date_from', dateFrom);
+    if (dateTo) qs.set('date_to', dateTo);
+    return parse(request(`/audit/?${qs.toString()}`));
+  },
+  get: (id) => parse(request(`/audit/${id}`)),
 };
 
 // ---------------------------------------------------------------------------

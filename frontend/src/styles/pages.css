@@ -94,12 +94,68 @@
 
 .dash-grid>div {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
 }
 
 @media (max-width: 980px) {
   .dash-grid {
     grid-template-columns: 1fr;
   }
+}
+
+.panel-body-md {
+  padding: var(--space-4);
+}
+
+.panel-body-lg {
+  padding: var(--space-4) var(--space-5);
+}
+
+.list-row-icon-danger {
+  background: var(--urgency-high-bg);
+  color: var(--urgency-high);
+}
+
+.badge-fit {
+  width: fit-content;
+}
+
+.shift-status {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.shift-status-meta {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.shift-status-next {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.shift-status-empty {
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+}
+
+.skeleton-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2);
+}
+
+.skeleton-rows .skeleton-line {
+  height: 44px;
+  width: 100%;
 }
 
 .panel {
@@ -342,7 +398,27 @@
 .handover-meta-row {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-2);
+}
+
+.handover-submitted-by {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.handover-submitted-by span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.handover-submitted-by strong {
+  color: var(--text-primary);
+  font-weight: 600;
 }
 
 .meta-chip {
@@ -508,8 +584,9 @@
 .entity-card-footer {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   justify-content: flex-end;
-  gap: var(--space-1);
+  gap: var(--space-1) var(--space-2);
   padding-top: var(--space-2);
   border-top: 1px solid var(--border-subtle);
 }
@@ -1050,19 +1127,6 @@
   color: var(--text-tertiary);
 }
 
-.profile-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: var(--space-5);
-  align-items: start;
-}
-
-@media (max-width: 820px) {
-  .profile-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
 .info-row {
   display: flex;
   align-items: center;
@@ -1251,76 +1315,44 @@
 }
 
 /* ==========================================================================
-   PROFILE COMPLETION CARD
-   Icon + heading + description sit together as one readable block.
-   The "Complete profile" button lives on its own row below the progress
-   bar (see .profile-completion-actions) rather than sharing the top row —
-   cramming a button sideways into that row is what previously forced the
-   text column down to ~1 word per line.
+   PROFILE COMPLETION — inline progress, not a card
+   Lives in the page header as a thin bar + label. The +Add affordances on
+   each empty field already say what's missing, so this is just an
+   at-a-glance sense of overall progress — it doesn't need to repeat the
+   checklist or compete for attention with its own colored panel.
    ========================================================================== */
-.profile-completion-card .panel-body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-.profile-completion-top {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-}
-
-.profile-completion-top-text {
-  flex: 1;
-  min-width: 0;
-}
-
-.profile-completion-top-text strong {
-  display: block;
-  font-size: var(--text-base);
-}
-
-.profile-completion-top p {
-  font-size: var(--text-sm);
-  color: var(--text-secondary);
-  margin-top: 2px;
-  line-height: var(--leading-normal);
-}
-
-.profile-completion-icon {
-  width: 34px;
-  height: 34px;
-  border-radius: var(--radius-md);
-  background: var(--teal-50);
-  color: var(--teal-700);
+.profile-progress-inline {
   display: flex;
   align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
 }
 
-.profile-completion-actions {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.progress-track {
-  height: 6px;
-  border-radius: 999px;
+.profile-progress-track {
+  width: 120px;
+  height: 5px;
+  border-radius: var(--radius-full);
   background: var(--surface-hover-strong);
   overflow: hidden;
 }
 
-.progress-fill {
+.profile-progress-fill {
   height: 100%;
   background: var(--teal-500);
-  border-radius: 999px;
-  transition: width var(--duration-base) var(--ease-standard);
+  border-radius: var(--radius-full);
+  transition: width var(--duration-slow) var(--ease-standard);
+}
+
+.profile-progress-inline span {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-tertiary);
+  white-space: nowrap;
 }
 
 @media (max-width: 600px) {
-  .profile-completion-actions .btn {
-    width: 100%;
+  .profile-progress-track {
+    width: 90px;
   }
 }
 
@@ -1371,4 +1403,145 @@
 
 .settings-row-static:hover {
   background: none;
+}
+
+/* ==========================================================================
+   PROFILE — merged data view
+   Filled fields render as plain text; empty ones render as a dashed "+ Add"
+   affordance instead of a flat "Not set" label, so an incomplete field is
+   somewhere to act, not just a note that something is missing.
+   ========================================================================== */
+.profile-hero-jobtitle {
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--ink-300);
+  margin-top: 1px;
+}
+
+/* One card: dark identity banner on top, then a single continuous field
+   grid and bio section below — no separate bordered panels stacked with
+   gaps between them. */
+.profile-card {
+  padding: 0;
+}
+
+.profile-card .profile-hero {
+  border-radius: 0;
+  position: relative;
+}
+
+.profile-hero-edit {
+  position: absolute;
+  top: var(--space-5);
+  right: var(--space-5);
+  z-index: 1;
+}
+
+.profile-progress-inline-card {
+  margin: 0;
+  padding: var(--space-5) var(--space-6) 0;
+}
+
+.profile-field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-5) var(--space-6);
+  padding: var(--space-6);
+}
+
+.profile-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.profile-field-full {
+  grid-column: 1 / -1;
+}
+
+.profile-field-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.profile-field-label svg {
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+}
+
+.profile-field-value {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-sunken);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+button.profile-field-value.profile-field-value-empty {
+  width: 100%;
+  gap: 6px;
+  border-style: dashed;
+  border-color: var(--border-strong);
+  background: none;
+  color: var(--teal-700);
+  font-weight: 600;
+  font-size: var(--text-xs);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard);
+}
+
+button.profile-field-value.profile-field-value-empty:hover {
+  background: var(--teal-50);
+  border-color: var(--teal-500);
+}
+
+.profile-card-bio {
+  padding: 0 var(--space-6) var(--space-6);
+}
+
+.profile-field-bio-text {
+  min-height: 42px;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-sunken);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+  white-space: pre-wrap;
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .profile-field-grid {
+    grid-template-columns: 1fr;
+    padding: var(--space-5);
+  }
+
+  .profile-card-bio {
+    padding: 0 var(--space-5) var(--space-5);
+  }
+
+  .profile-hero-edit {
+    position: static;
+    margin-top: var(--space-4);
+  }
+
+  .profile-progress-inline-card {
+    padding: var(--space-4) var(--space-5) 0;
+  }
 }

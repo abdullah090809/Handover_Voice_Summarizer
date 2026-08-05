@@ -70,32 +70,45 @@ async def upload_profile_picture(
 
     os.makedirs(PROFILE_PICTURE_DIR, exist_ok=True)
 
-    if current_user.profile_photo_url and current_user.profile_photo_url.startswith("/static/profile_pictures/"):
-        old_path = current_user.profile_photo_url.lstrip("/")
-        if os.path.exists(old_path):
-            os.remove(old_path)
-
+    # Write the NEW file first. Only once it's fully written, size-validated,
+    # and the DB commit succeeds do we touch the old file. This way a dropped
+    # connection, an oversized upload, or a DB error never leaves the user
+    # with no profile picture at all — the previous one stays intact.
     ext = ALLOWED_IMAGE_TYPES[file.content_type]
     filename = f"{current_user.id}_{uuid.uuid4().hex}.{ext}"
     filepath = os.path.join(PROFILE_PICTURE_DIR, filename)
+    previous_url = current_user.profile_photo_url
 
     size = 0
     _CHUNK_SIZE = 1024 * 1024  # 1 MB chunk size
-    with open(filepath, "wb") as f:
-        while chunk := await file.read(_CHUNK_SIZE):
-            size += len(chunk)
-            if size > MAX_PROFILE_PICTURE_SIZE:
-                f.close()
-                os.remove(filepath)
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Image must be smaller than 5MB",
-                )
-            f.write(chunk)
+    try:
+        with open(filepath, "wb") as f:
+            while chunk := await file.read(_CHUNK_SIZE):
+                size += len(chunk)
+                if size > MAX_PROFILE_PICTURE_SIZE:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Image must be smaller than 5MB",
+                    )
+                f.write(chunk)
 
-    current_user.profile_photo_url = f"/static/profile_pictures/{filename}"
-    db.commit()
-    db.refresh(current_user)
+        current_user.profile_photo_url = f"/static/profile_pictures/{filename}"
+        db.commit()
+        db.refresh(current_user)
+    except Exception:
+        # New file failed validation, or the DB commit failed — clean up the
+        # partial/rejected upload and leave the user's existing photo alone.
+        if os.path.exists(filepath):
+            os.remove(filepath)
+        db.rollback()
+        raise
+
+    # Only now, after the new photo is confirmed saved, remove the old one.
+    if previous_url and previous_url.startswith("/static/profile_pictures/"):
+        old_path = previous_url.lstrip("/")
+        if os.path.exists(old_path):
+            os.remove(old_path)
+
     return current_user
 
 

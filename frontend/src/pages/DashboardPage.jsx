@@ -16,7 +16,7 @@ import { useAuth } from '../lib/AuthContext.jsx';
 import { handoverApi, residentApi, shiftApi, notificationApi, ApiError } from '../lib/api.js';
 import { useAutoClockOut } from '../lib/useAutoClockOut.js';
 import { UrgencyBadge } from '../components/Badge.jsx';
-import { EmptyState } from '../components/States.jsx';
+import { EmptyState, ErrorState } from '../components/States.jsx';
 import { formatRelative, formatDateTime, firstName, truncate } from '../lib/format.js';
 import NewHandoverModal from '../components/NewHandoverModal.jsx';
 import HandoverDetailModal from '../components/HandoverDetailModal.jsx';
@@ -26,6 +26,11 @@ export default function DashboardPage() {
   const navigate = useNavigate();
 
   const [handovers, setHandovers] = useState(null);
+  // Handovers on record: the API returns { results, total } — `total` is the
+  // true count of matching notes, independent of how many rows this page
+  // actually fetched (capped at `limit`). Stat cards must read `total`, not
+  // the length of the fetched-and-capped `results` array.
+  const [handoverTotal, setHandoverTotal] = useState(null);
   const [residents, setResidents] = useState([]);
   const [shifts, setShifts] = useState([]);
   const [notifications, setNotifications] = useState([]);
@@ -37,30 +42,43 @@ export default function DashboardPage() {
     shiftApi.list().then(setShifts).catch(() => { });
   }, []);
 
+  const load = useCallback(async () => {
+    setError(null);
+    try {
+      const [handoverData, residentData] = await Promise.all([handoverApi.list({ limit: 30 }), residentApi.list(false)]);
+      // API returns a paginated object { results, total } — unwrap it here.
+      // The `?? handoverData` fallback keeps this working if the endpoint
+      // ever returns a bare array instead.
+      setHandovers(handoverData?.results ?? handoverData ?? []);
+      setHandoverTotal(
+        typeof handoverData?.total === 'number'
+          ? handoverData.total
+          : Array.isArray(handoverData)
+            ? handoverData.length
+            : null
+      );
+      setResidents(residentData);
+      shiftApi.list().then(setShifts).catch(() => { });
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not load your dashboard.');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
-    async function load() {
-      try {
-        const [handoverData, residentData] = await Promise.all([handoverApi.list({ limit: 30 }), residentApi.list(false)]);
-        if (cancelled) return;
-        // API returns a paginated object { results, total } — unwrap it here.
-        // The `?? handoverData` fallback keeps this working if the endpoint
-        // ever returns a bare array instead.
-        setHandovers(handoverData?.results ?? handoverData ?? []);
-        setResidents(residentData);
-        shiftApi.list().then((s) => !cancelled && setShifts(s)).catch(() => { });
-        if (isManager) {
-          notificationApi.list(50).then((n) => !cancelled && setNotifications(n)).catch(() => { });
-        }
-      } catch (err) {
-        if (!cancelled) setError(err instanceof ApiError ? err.message : 'Could not load your dashboard.');
+    async function loadDashboard() {
+      await load();
+      if (cancelled) return;
+      if (isManager) {
+        notificationApi.list(50).then((n) => !cancelled && setNotifications(n)).catch(() => { });
       }
     }
-    load();
+    loadDashboard();
     return () => {
       cancelled = true;
     };
-  }, [isManager]);
+  }, [isManager, load]);
 
   const residentMap = useMemo(() => Object.fromEntries(residents.map((r) => [r.id, r.name])), [residents]);
 
@@ -70,10 +88,38 @@ export default function DashboardPage() {
 
   const recentHandovers = safeHandovers.slice(0, 6);
   const urgentHandovers = safeHandovers.filter((n) => n.urgency_flag === 'high' || n.urgency_flag === 'urgent').slice(0, 5);
-  const followUps = safeHandovers
+  const allFollowUps = safeHandovers
     .filter((n) => n.status === 'complete' && n.summary_json?.follow_up_actions?.length)
     .flatMap((n) => n.summary_json.follow_up_actions.map((action) => ({ action, note: n })))
-    .slice(0, 6);
+    // A follow-up only leaves this list once someone actually marks it done —
+    // not the moment the AI summary happens to mention it.
+    .filter(({ action, note }) => !(note.resolved_follow_ups || []).includes(action));
+  // The stat card and "Mark done" logic need the TRUE count; only the
+  // on-screen list of rows should be capped to 6 for display purposes.
+  const followUps = allFollowUps.slice(0, 6);
+
+  async function resolveFollowUp(f) {
+    // Optimistic: flip it off the list immediately, reconcile with the
+    // server response (which becomes the new source of truth) after.
+    setHandovers((prev) =>
+      (prev || []).map((n) =>
+        n.id === f.note.id ? { ...n, resolved_follow_ups: [...(n.resolved_follow_ups || []), f.action] } : n
+      )
+    );
+    try {
+      const updated = await handoverApi.setFollowUpResolved(f.note.id, f.action, true);
+      setHandovers((prev) => (prev || []).map((n) => (n.id === updated.id ? updated : n)));
+    } catch {
+      // Revert on failure.
+      setHandovers((prev) =>
+        (prev || []).map((n) =>
+          n.id === f.note.id
+            ? { ...n, resolved_follow_ups: (n.resolved_follow_ups || []).filter((a) => a !== f.action) }
+            : n
+        )
+      );
+    }
+  }
 
   const currentShift = shifts.find((s) => {
     const now = Date.now();
@@ -105,7 +151,7 @@ export default function DashboardPage() {
             <StatCard icon={Users} label="Active residents" value={activeResidents.length} tone="default" />
             <StatCard icon={TriangleAlert} label="Urgent handovers (recent)" value={urgentHandovers.length} tone="high" />
             <StatCard icon={Bell} label="Unread alerts" value={unreadAlerts} tone="medium" />
-            <StatCard icon={FileAudio} label="Handovers on record" value={handovers !== null ? safeHandovers.length : '—'} tone="info" />
+            <StatCard icon={FileAudio} label="Handovers on record" value={handoverTotal !== null ? handoverTotal : '—'} tone="info" />
           </>
         ) : (
           <>
@@ -116,14 +162,14 @@ export default function DashboardPage() {
               tone={currentShift ? 'default' : 'info'}
             />
             <StatCard icon={Users} label="Active residents" value={activeResidents.length} tone="default" />
-            <StatCard icon={FileAudio} label="Your recent handovers" value={handovers !== null ? safeHandovers.length : '—'} tone="info" />
-            <StatCard icon={ListChecks} label="Open follow-ups" value={followUps.length} tone="medium" />
+            <StatCard icon={FileAudio} label="Your recent handovers" value={handoverTotal !== null ? handoverTotal : '—'} tone="info" />
+            <StatCard icon={ListChecks} label="Open follow-ups" value={allFollowUps.length} tone="medium" />
           </>
         )}
       </div>
 
       <div className="dash-grid">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
+        <div>
           <div className="panel">
             <div className="panel-header">
               <h3>Recent handovers</h3>
@@ -133,7 +179,7 @@ export default function DashboardPage() {
             </div>
             <div className="panel-body">
               {handovers === null && !error && <SkeletonRows />}
-              {error && <p style={{ padding: 'var(--space-4)', color: 'var(--urgency-high)', fontSize: 'var(--text-sm)' }}>{error}</p>}
+              {error && <ErrorState message={error} onRetry={load} />}
               {handovers !== null && recentHandovers.length === 0 && (
                 <EmptyState icon={FileAudio} title="No handovers yet" message="Recent handover notes will show up here." />
               )}
@@ -144,7 +190,12 @@ export default function DashboardPage() {
                   </span>
                   <span className="list-row-body">
                     <span className="list-row-title">{residentMap[n.resident_id] || `Resident #${n.resident_id}`}</span>
-                    <span className="list-row-meta">{formatRelative(n.created_at)}</span>
+                    <span className="list-row-meta">
+                      {formatRelative(n.created_at)}
+                      {isManager && (n.submitted_by?.name?.trim() || n.submitted_by?.username) && (
+                        <> &middot; {n.submitted_by.name?.trim() || n.submitted_by.username}</>
+                      )}
+                    </span>
                   </span>
                   <span className="list-row-side">
                     {n.status === 'complete' ? <UrgencyBadge urgency={n.urgency_flag} /> : <span className="badge badge-info">{n.status}</span>}
@@ -169,7 +220,7 @@ export default function DashboardPage() {
                 )}
                 {urgentHandovers.map((n) => (
                   <div className="list-row" key={n.id} onClick={() => setOpenNote(n)} role="button" tabIndex={0}>
-                    <span className="list-row-icon" style={{ background: 'var(--urgency-high-bg)', color: 'var(--urgency-high)' }}>
+                    <span className="list-row-icon list-row-icon-danger">
                       <TriangleAlert />
                     </span>
                     <span className="list-row-body">
@@ -193,16 +244,26 @@ export default function DashboardPage() {
               <div className="panel-body">
                 {followUps.length === 0 && <EmptyState icon={ListChecks} title="All caught up" message="Follow-up actions from your handovers will appear here." />}
                 {followUps.map((f, i) => (
-                  <div className="list-row" key={i} onClick={() => setOpenNote(f.note)} role="button" tabIndex={0}>
-                    <span className="list-row-icon">
+                  <div className="list-row" key={i}>
+                    <span className="list-row-icon" onClick={() => setOpenNote(f.note)} role="button" tabIndex={0}>
                       <ListChecks />
                     </span>
-                    <span className="list-row-body">
+                    <span className="list-row-body" onClick={() => setOpenNote(f.note)} role="button" tabIndex={0}>
                       <span className="list-row-title">{f.action}</span>
                       <span className="list-row-meta">
                         {residentMap[f.note.resident_id] || `Resident #${f.note.resident_id}`} &middot; {formatRelative(f.note.created_at)}
                       </span>
                     </span>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        resolveFollowUp(f);
+                      }}
+                    >
+                      Mark done
+                    </button>
                   </div>
                 ))}
               </div>
@@ -210,12 +271,12 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
+        <div>
           <div className="panel">
             <div className="panel-header">
               <h3>Quick actions</h3>
             </div>
-            <div className="panel-body" style={{ padding: 'var(--space-4)' }}>
+            <div className="panel-body panel-body-md">
               <div className="quick-actions">
                 {!isManager && (
                   <button className="quick-action-btn" onClick={() => setShowNewModal(true)}>
@@ -278,26 +339,24 @@ export default function DashboardPage() {
               <div className="panel-header">
                 <h3>Your shift</h3>
               </div>
-              <div className="panel-body" style={{ padding: 'var(--space-4) var(--space-5)' }}>
+              <div className="panel-body panel-body-lg">
                 {currentShift ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-                    <span className="badge badge-active" style={{ width: 'fit-content' }}>
+                  <div className="shift-status">
+                    <span className="badge badge-active badge-fit">
                       Ongoing
                     </span>
-                    <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
+                    <div className="shift-status-meta">
                       Started {formatDateTime(currentShift.start_time)}
                     </div>
                   </div>
                 ) : nextShift ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-                    <span
-                      style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}
-                    >
+                  <div className="shift-status">
+                    <span className="shift-status-next">
                       <CalendarClock size={15} /> Next shift {formatDateTime(nextShift.start_time)}
                     </span>
                   </div>
                 ) : (
-                  <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-tertiary)' }}>No upcoming shifts logged.</p>
+                  <p className="shift-status-empty">No upcoming shifts logged.</p>
                 )}
               </div>
             </div>
@@ -312,7 +371,7 @@ export default function DashboardPage() {
           onClose={() => setShowNewModal(false)}
           onSubmitted={() => {
             setShowNewModal(false);
-            handoverApi.list({ limit: 30 }).then((data) => setHandovers(data?.results ?? data ?? []));
+            load();
           }}
         />
       )}
@@ -337,9 +396,9 @@ function StatCard({ icon: Icon, label, value, tone }) {
 
 function SkeletonRows() {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', padding: 'var(--space-2)' }}>
+    <div className="skeleton-rows">
       {Array.from({ length: 3 }).map((_, i) => (
-        <div key={i} className="skeleton skeleton-line" style={{ height: 44, width: '100%' }} />
+        <div key={i} className="skeleton skeleton-line" />
       ))}
     </div>
   );

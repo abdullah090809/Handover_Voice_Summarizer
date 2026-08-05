@@ -1,18 +1,23 @@
 import json
 import logging
 from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-logger = logging.getLogger(__name__)
-
 from app.cores.database import get_db
 from app.cores.security import get_current_user, require_manager
-from app.models.resident import Resident
 from app.models.notification import Notification
+from app.models.resident import Resident
 from app.models.user import User
-from app.schemas.resident import ResidentCreate, ResidentOut, ResidentStatusUpdate
 from app.routers.websocket import manager
+from app.schemas.resident import (
+    ResidentCreate,
+    ResidentOut,
+    ResidentStatusUpdate,
+)
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/residents", tags=["Residents"])
 
@@ -21,7 +26,7 @@ router = APIRouter(prefix="/residents", tags=["Residents"])
 def create_resident(
     resident: ResidentCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_manager), 
+    current_user: User = Depends(require_manager),
 ):
     new_resident = Resident(**resident.model_dump())
     db.add(new_resident)
@@ -39,11 +44,12 @@ def list_residents(
     current_user: User = Depends(get_current_user),
 ):
     query = db.query(Resident)
+
     if current_user.role != "manager":
         query = query.filter(Resident.status == "active")
-    else:
-        if not include_inactive:
-            query = query.filter(Resident.status == "active")
+    elif not include_inactive:
+        query = query.filter(Resident.status == "active")
+
     return query.offset(skip).limit(limit).all()
 
 
@@ -54,11 +60,13 @@ def get_resident(
     current_user: User = Depends(get_current_user),
 ):
     resident = db.query(Resident).filter(Resident.id == id).first()
+
     if not resident:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Resident with id {id} not found",
         )
+
     return resident
 
 
@@ -69,8 +77,7 @@ def update_resident(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_manager),
 ):
-    resident_query = db.query(Resident).filter(Resident.id == id)
-    resident = resident_query.first()
+    resident = db.query(Resident).filter(Resident.id == id).first()
 
     if not resident:
         raise HTTPException(
@@ -78,10 +85,14 @@ def update_resident(
             detail=f"Resident with id {id} not found",
         )
 
-    resident_query.update(updated_resident.model_dump(), synchronize_session=False)
-    db.commit()
+    # SQLAlchemy 2.x style update
+    for field, value in updated_resident.model_dump().items():
+        setattr(resident, field, value)
 
-    return resident_query.first()
+    db.commit()
+    db.refresh(resident)
+
+    return resident
 
 
 @router.patch("/{id}/status", response_model=ResidentOut)
@@ -92,6 +103,7 @@ async def update_resident_status(
     current_user: User = Depends(require_manager),
 ):
     resident = db.query(Resident).filter(Resident.id == id).first()
+
     if not resident:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -100,6 +112,7 @@ async def update_resident_status(
 
     old_status = resident.status
     resident.status = payload.status
+
     if payload.status == "active":
         resident.discharged_at = None
     else:
@@ -108,27 +121,35 @@ async def update_resident_status(
     db.commit()
     db.refresh(resident)
 
-    if payload.status in ["discharged", "deceased"]:
+    if old_status != payload.status and payload.status in ("discharged", "deceased"):
         msg = f"Resident {resident.name} status updated to {payload.status}."
+
         notification = Notification(
             message=msg,
             urgency_flag="high",
             resident_id=resident.id,
         )
+
         db.add(notification)
         db.commit()
         db.refresh(notification)
 
         try:
-            await manager.broadcast(json.dumps({
-                "type": "notification",
-                "id": notification.id,
-                "message": msg,
-                "urgency_flag": "high",
-                "resident_id": resident.id,
-            }))
+            await manager.broadcast(
+                json.dumps(
+                    {
+                        "type": "notification",
+                        "id": notification.id,
+                        "message": msg,
+                        "urgency_flag": "high",
+                        "resident_id": resident.id,
+                    }
+                )
+            )
         except Exception:
-            logger.exception("Failed to broadcast resident status update websocket notification")
+            logger.exception(
+                "Failed to broadcast resident status update websocket notification"
+            )
 
     return resident
 
@@ -139,8 +160,7 @@ def delete_resident(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_manager),
 ):
-    resident_query = db.query(Resident).filter(Resident.id == id)
-    resident = resident_query.first()
+    resident = db.query(Resident).filter(Resident.id == id).first()
 
     if not resident:
         raise HTTPException(
@@ -148,7 +168,7 @@ def delete_resident(
             detail=f"Resident with id {id} not found",
         )
 
-    resident_query.delete(synchronize_session=False)
+    db.delete(resident)
     db.commit()
 
     return None

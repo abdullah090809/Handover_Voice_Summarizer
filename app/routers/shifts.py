@@ -1,5 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+
 from app.cores.database import get_db
 from app.cores.security import get_current_user
 from app.models.shift import Shift
@@ -36,12 +38,14 @@ def list_my_shifts(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Only managers can view other workers' shifts",
             )
+
         target_worker = db.query(User).filter(User.id == worker_id).first()
         if not target_worker:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Worker with id {worker_id} not found",
             )
+
         query_id = worker_id
     else:
         query_id = current_user.id
@@ -62,16 +66,19 @@ def get_shift(
     current_user: User = Depends(get_current_user),
 ):
     shift = db.query(Shift).filter(Shift.id == id).first()
+
     if not shift:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Shift with id {id} not found",
         )
+
     if shift.worker_id != current_user.id and current_user.role != "manager":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to view this shift",
         )
+
     return shift
 
 
@@ -82,27 +89,29 @@ def update_shift(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    shift_query = db.query(Shift).filter(Shift.id == id)
-    shift = shift_query.first()
+    shift = db.query(Shift).filter(Shift.id == id).first()
 
     if not shift:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Shift with id {id} not found",
         )
+
     if shift.worker_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to update this shift",
         )
 
-    shift_query.update(updated_shift.model_dump(), synchronize_session=False)
+    # Update the ORM object directly (SQLAlchemy 2.x style)
+    for field, value in updated_shift.model_dump().items():
+        setattr(shift, field, value)
+
     db.commit()
+    db.refresh(shift)
 
-    return shift_query.first()
+    return shift
 
-
-from sqlalchemy.exc import IntegrityError
 
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_shift(
@@ -110,14 +119,14 @@ def delete_shift(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    shift_query = db.query(Shift).filter(Shift.id == id)
-    shift = shift_query.first()
+    shift = db.query(Shift).filter(Shift.id == id).first()
 
     if not shift:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Shift with id {id} not found",
         )
+
     if shift.worker_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -125,7 +134,7 @@ def delete_shift(
         )
 
     try:
-        shift_query.delete(synchronize_session=False)
+        db.delete(shift)
         db.commit()
     except IntegrityError:
         db.rollback()

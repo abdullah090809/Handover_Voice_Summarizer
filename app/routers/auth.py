@@ -5,6 +5,8 @@ from typing import Protocol
 logger = logging.getLogger(__name__)
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from app.cores.database import get_db
 from app.cores.limiter import limiter
@@ -27,6 +29,7 @@ from app.schemas.user import (
     UserOut,
     VerifyOTP,
 )
+# pyrefly: ignore [missing-module-attribute]
 from app.tasks import send_verification_email_task, send_password_reset_email_task
 
 router = APIRouter(tags=["Auth"])
@@ -66,10 +69,19 @@ def register(request: Request, user: UserCreate, db: Session = Depends(get_db)):
             detail="Email already registered",
         )
 
+    # Item: a username is only "reserved" by an in-progress signup while
+    # that signup's OTP is still valid. Once it's expired, someone else
+    # abandoned that username - don't let a stale pending_users row block
+    # a different person from taking it forever. (The row itself may still
+    # be sitting in the table until the periodic cleanup task removes it -
+    # see app.tasks.cleanup_expired_pending_users - but it no longer
+    # reserves the name.)
     username_taken = (
         db.query(User).filter(User.username == user.username).first()
         or db.query(PendingUser).filter(
-            PendingUser.username == user.username, PendingUser.email != user.email
+            PendingUser.username == user.username,
+            PendingUser.email != user.email,
+            PendingUser.otp_expires_at >= func.now(),
         ).first()
     )
     if username_taken:
@@ -94,6 +106,17 @@ def register(request: Request, user: UserCreate, db: Session = Depends(get_db)):
         existing_pending.otp_expires_at = get_otp_expiry()
         db.commit()
     else:
+        # Opportunistic cleanup: the check above already treats this
+        # username as available because any pending row holding it has an
+        # expired OTP -- but that stale row is still physically present,
+        # and PendingUser.username is also unique at the DB level. Remove
+        # it now instead of waiting for the hourly cleanup task, otherwise
+        # this insert would hit a raw IntegrityError.
+        db.query(PendingUser).filter(
+            PendingUser.username == user.username,
+            PendingUser.otp_expires_at < func.now(),
+        ).delete(synchronize_session=False)
+
         otp_code = generate_otp()
         new_pending = PendingUser(
             email=user.email,
@@ -104,7 +127,17 @@ def register(request: Request, user: UserCreate, db: Session = Depends(get_db)):
             otp_expires_at=get_otp_expiry(),
         )
         db.add(new_pending)
-        db.commit()
+        try:
+            db.commit()
+        except IntegrityError:
+            # Genuine simultaneous registration race (two people claiming
+            # the exact same available username in the same instant) --
+            # rare, but fail cleanly instead of a raw 500.
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Username already taken",
+            )
 
     try:
         send_verification_email_task.delay(to_email=user.email, otp_code=otp_code)
@@ -270,6 +303,7 @@ def login(
 ):
     user = db.query(User).filter(User.email == user_credentials.username).first()
 
+    # pyrefly: ignore [bad-argument-type]
     if not user or not verify_password(user_credentials.password, user.password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

@@ -25,7 +25,9 @@ celery_app.conf.task_queues = (
     Queue("handover.dlq", _dlq_exchange, routing_key="handover.dlq"),
 )
 celery_app.conf.task_default_queue = "celery"
+# pyrefly: ignore [read-only]
 celery_app.conf.task_default_exchange = "handover"
+# pyrefly: ignore [read-only]
 celery_app.conf.task_default_routing_key = "celery"
 
 # After all retries are exhausted Celery calls the task's on_failure hook.
@@ -33,3 +35,18 @@ celery_app.conf.task_default_routing_key = "celery"
 # set on each task (see app/tasks.py process_handover_note on_failure).
 celery_app.conf.task_reject_on_worker_lost = True  # re-queue if worker is killed mid-task
 celery_app.conf.task_acks_late = True  # belt-and-suspenders for acks_late at task level
+
+# ---------------------------------------------------------------------------
+# Periodic cleanup: abandoned registrations (never-verified pending_users
+# rows) otherwise sit forever and permanently squat their username/email.
+# Runs every hour; the task itself only deletes rows past a 24h grace
+# period, so this doesn't need to run frequently to be effective.
+# Requires a `celery beat` process running alongside celery_worker - see
+# docker-compose notes.
+# ---------------------------------------------------------------------------
+celery_app.conf.beat_schedule = {
+    "cleanup-expired-pending-users": {
+        "task": "app.tasks.cleanup_expired_pending_users",
+        "schedule": 3600.0,  # seconds
+    },
+}

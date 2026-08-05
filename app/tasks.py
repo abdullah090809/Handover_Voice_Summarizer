@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+from datetime import datetime, timedelta, timezone
 import app.models
 from google.genai.errors import ClientError
 from app.cores.celery_app import celery_app
@@ -8,6 +9,7 @@ from app.cores.database import SessionLocal
 from app.cores.redis_client import redis_client
 from app.models.handover_note import HandoverNote
 from app.models.notification import Notification
+from app.models.pending_user import PendingUser
 from app.models.resident import Resident
 from app.models.user import User
 from app.services.email import send_urgent_handover_email, send_verification_email, send_password_reset_email
@@ -35,6 +37,90 @@ def send_password_reset_email_task(to_email: str, otp_code: str) -> None:
     except Exception as e:
         logger.error(f"Async password reset email sending failed: {e}")
         raise
+
+
+@celery_app.task
+def cleanup_expired_pending_users() -> int:
+    """Runs on a schedule (see celery_app.conf.beat_schedule). Deletes
+    pending_users rows that have been sitting unverified for a while --
+    i.e. someone started registering but never came back to verify.
+    Without this, an abandoned signup permanently reserves its
+    username/email in pending_users forever, since the row is otherwise
+    only ever deleted on successful verify.
+
+    We don't delete the instant otp_expires_at passes (that's only 10
+    minutes -- see security.get_otp_expiry) because someone who requested
+    a code and comes back later to hit "resend" should still find their
+    in-progress signup. Instead we wait a grace period past expiry
+    before treating it as truly abandoned.
+
+    otp_expires_at is a tz-aware UTC timestamptz column, and Postgres
+    timestamptz comparisons are done in absolute time regardless of the
+    server's local OS timezone -- so this is correct no matter what
+    timezone the API/worker container or the person registering is in.
+    """
+    grace_period = timedelta(hours=24)
+    cutoff = datetime.now(timezone.utc) - grace_period
+
+    db = SessionLocal()
+    try:
+        deleted = (
+            db.query(PendingUser)
+            .filter(PendingUser.otp_expires_at < cutoff)
+            .delete(synchronize_session=False)
+        )
+        db.commit()
+        if deleted:
+            logger.info(f"cleanup_expired_pending_users: removed {deleted} expired pending signup(s)")
+        return deleted
+    except Exception:
+        db.rollback()
+        logger.exception("cleanup_expired_pending_users failed")
+        raise
+    finally:
+        db.close()
+
+
+@celery_app.task
+def cleanup_expired_pending_users() -> int:
+    """Runs on a schedule (see celery_app.conf.beat_schedule). Deletes
+    pending_users rows that have been sitting unverified for a while —
+    i.e. someone started registering but never came back to verify.
+    Without this, an abandoned signup permanently reserves its
+    username/email in pending_users forever, since the row is otherwise
+    only ever deleted on successful verify.
+
+    We don't delete the instant otp_expires_at passes (that's only 10
+    minutes — see security.get_otp_expiry) because someone who requested
+    a code and comes back later to hit "resend" should still find their
+    in-progress signup. Instead we wait a grace period past expiry
+    before treating it as truly abandoned.
+
+    otp_expires_at is a tz-aware UTC timestamptz column, and Postgres
+    timestamptz comparisons are done in absolute time regardless of the
+    server's local OS timezone — so this is correct no matter what
+    timezone the API/worker container or the person registering is in.
+    """
+    grace_period = timedelta(hours=24)
+    cutoff = datetime.now(timezone.utc) - grace_period
+
+    db = SessionLocal()
+    try:
+        deleted = (
+            db.query(PendingUser)
+            .filter(PendingUser.otp_expires_at < cutoff)
+            .delete(synchronize_session=False)
+        )
+        db.commit()
+        if deleted:
+            logger.info(f"cleanup_expired_pending_users: removed {deleted} expired pending signup(s)")
+        return deleted
+    except Exception:
+        db.rollback()
+        logger.exception("cleanup_expired_pending_users failed")
+        raise
+    finally:
+        db.close()
 
 
 
@@ -118,7 +204,7 @@ def process_handover_note(self, note_id: int, tmp_path: str) -> None:
             logger.exception("Gemini summarization failed for note %s", note_id)
             note.status = "failed"  # pyrefly: ignore [bad-assignment]
             note.raw_transcript = transcript  # pyrefly: ignore [bad-assignment]
-            note.error_message = "Structured summary generation failed"  # pyrefly: ignore [bad-assignment]
+            note.error_message = "Summary generation failed, but the transcript below was saved."  # pyrefly: ignore [bad-assignment]
             db.commit()
             _publish_ws({"type": "handover_updated", "id": note_id, "status": "failed"})
             raise

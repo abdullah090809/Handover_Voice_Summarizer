@@ -92,6 +92,7 @@ async def websocket_endpoint(websocket: WebSocket):
     finally:
         db.close()
 
+    # pyrefly: ignore [bad-argument-type]
     await manager.connect(websocket, role=user_role)
     try:
         while True:

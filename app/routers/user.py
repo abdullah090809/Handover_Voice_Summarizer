@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, 
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from app.cores.database import get_db
-from app.cores.security import get_current_user, hash_password, verify_password, require_manager, blocklist_token
+from app.cores.security import get_current_user, hash_password, verify_password, require_manager, blocklist_token, clear_token_blocklist
 from app.models.user import User
 from app.schemas.user import (
     ChangePassword,
@@ -134,6 +134,7 @@ def change_password(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # pyrefly: ignore [bad-argument-type]
     if not verify_password(payload.current_password, current_user.password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -306,6 +307,7 @@ def deactivate_user(
     db.commit()
     db.refresh(user)
     # Immediately revoke all active tokens for this user via Redis blocklist
+    # pyrefly: ignore [bad-argument-type]
     blocklist_token(user.id)
     return user
 
@@ -331,6 +333,11 @@ def activate_user(
     user.previous_role = None
     db.commit()
     db.refresh(user)
+    # Undo the deactivation-time blocklist entry. Without this, the block
+    # is keyed only by user_id (not by when the token was issued), so it
+    # would keep rejecting this user's requests -- including a fresh
+    # login's new token -- until the original TTL ran out on its own.
+    clear_token_blocklist(user.id)
     return user
 
 

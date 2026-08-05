@@ -37,9 +37,23 @@ export default function HandoverCard({ note, residentName, canDelete, onOpen, on
             <Loader2 size={14} className="spin-icon" /> Transcribing audio…
           </span>
         ) : isFailed ? (
-          <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--urgency-high)' }}>
-            <TriangleAlert size={14} /> {note.error_message || 'Processing failed'}
-          </span>
+          <>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--urgency-high)' }}>
+              <TriangleAlert size={14} /> {note.error_message || 'Processing failed'}
+            </span>
+            {note.raw_transcript && (
+              <p
+                style={{
+                  fontFamily: 'var(--font-reading)',
+                  color: 'var(--text-tertiary)',
+                  lineHeight: 1.5,
+                  marginTop: 6,
+                }}
+              >
+                {truncate(note.raw_transcript, 140)}
+              </p>
+            )}
+          </>
         ) : (
           <span style={{ color: 'var(--text-tertiary)' }}>No summary available.</span>
         )}
@@ -75,4 +89,3 @@ function truncate(text, n) {
   if (!text) return '';
   return text.length > n ? text.slice(0, n).trim() + '…' : text;
 }
-

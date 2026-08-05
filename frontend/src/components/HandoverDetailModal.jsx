@@ -8,6 +8,7 @@ import { resolveFileUrl } from '../lib/api.js';
 
 export default function HandoverDetailModal({ note, residentName, canDelete, onClose, onDelete }) {
   const [showTranscript, setShowTranscript] = useState(false);
+  const [showTranslated, setShowTranslated] = useState(false);
   if (!note) return null;
   const s = note.summary_json || {};
   const submitterName = note.submitted_by?.name?.trim() || note.submitted_by?.username;
@@ -41,6 +42,9 @@ export default function HandoverDetailModal({ note, residentName, canDelete, onC
       '',
       'Mood notes:',
       s.mood_notes || '—',
+      '',
+      'Translated transcript:',
+      s.translated_transcript || '—',
     ];
     const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
     downloadBlob(blob, `handover-${note.id}.txt`);
@@ -94,6 +98,25 @@ export default function HandoverDetailModal({ note, residentName, canDelete, onC
               ? note.error_message || 'This recording could not be processed.'
               : 'This note is still being transcribed and summarized. It will update automatically.'}
           </span>
+        </div>
+      )}
+
+      {/* Raw transcript: shown whenever we have one, even on failure — a failed
+          AI summary shouldn't hide a transcript that was already captured. */}
+      {note.status === 'failed' && note.raw_transcript && (
+        <div className="handover-read-section">
+          <button
+            className="collapsible-trigger"
+            style={{ padding: 0 }}
+            onClick={() => setShowTranscript((v) => !v)}
+            aria-expanded={showTranscript}
+          >
+            <span className="collapsible-trigger-title">
+              <FileText size={14} /> Transcript (summary generation failed)
+            </span>
+            <ChevronDown className={`collapsible-chevron ${showTranscript ? 'open' : ''}`} />
+          </button>
+          {showTranscript && <div className="handover-transcript-block">{note.raw_transcript}</div>}
         </div>
       )}
 
@@ -183,6 +206,25 @@ export default function HandoverDetailModal({ note, residentName, canDelete, onC
             </div>
           )}
 
+          {s.translated_transcript && (
+            <div className="handover-read-section">
+              <button
+                className="collapsible-trigger"
+                style={{ padding: 0 }}
+                onClick={() => setShowTranslated((v) => !v)}
+                aria-expanded={showTranslated}
+              >
+                <span className="collapsible-trigger-title">
+                  <FileText size={14} /> Translated transcript
+                </span>
+                <ChevronDown className={`collapsible-chevron ${showTranslated ? 'open' : ''}`} />
+              </button>
+              {showTranslated && (
+                <div className="handover-transcript-block">{s.translated_transcript}</div>
+              )}
+            </div>
+          )}
+
           {note.raw_transcript && (
             <div className="handover-read-section">
               <button
@@ -215,4 +257,3 @@ function downloadBlob(blob, filename) {
   a.remove();
   URL.revokeObjectURL(url);
 }
-

@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     redis_password: str | None = None
     gmail_smtp_user: str
     gmail_smtp_password: str
+    # If set to a single ISO-639-1 code (e.g. "ur"), Whisper always
+    # transcribes as that language -- no detection performed. Leave unset
+    # (None, the default) to let Whisper auto-detect the spoken language
+    # across its full language list, with no restriction to any subset.
+    whisper_language: str | None = None
 
     class Config:
         env_file = _ENV_FILE

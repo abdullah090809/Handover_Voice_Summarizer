@@ -123,6 +123,43 @@ services:
         - action: rebuild
           path: ./requirements.txt
 
+  # Item: Celery beat -- runs the periodic schedule defined in
+  # celery_app.conf.beat_schedule (currently: hourly cleanup of expired,
+  # never-verified pending_users rows). beat only decides WHEN to enqueue
+  # a task -- celery_worker still does the actual work. Kept as its own
+  # service (rather than `worker -B` on celery_worker) so restarting the
+  # worker doesn't also reset the scheduler, and so the worker's
+  # deliberately-constrained prefork/concurrency=1 setup (see comment
+  # above, re: Whisper OOM) stays untouched by an unrelated process.
+  celery_beat:
+    build: .
+    restart: always
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    depends_on:
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+      migration:
+        condition: service_completed_successfully
+    env_file:
+      - .env
+    environment:
+      DATABASE_HOSTNAME: db
+      REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    command: >
+      celery -A app.cores.celery_app.celery_app beat --loglevel=info --schedule=/tmp/celerybeat-schedule
+    develop:
+      watch:
+        - action: sync
+          path: ./app
+          target: /app/app
+        - action: rebuild
+          path: ./requirements.txt
+
   frontend:
     build: ./frontend
     restart: always

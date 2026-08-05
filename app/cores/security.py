@@ -80,6 +80,19 @@ def is_token_blocked(user_id: int | str) -> bool:
         return False
 
 
+def clear_token_blocklist(user_id: int) -> None:
+    """Remove a user from the Redis blocklist.
+
+    Must be called on reactivation. blocklist_token() blocks purely by
+    user_id for a fixed TTL (not "tokens issued before time X"), so without
+    this, a freshly reactivated user gets a valid new token at login but
+    every subsequent request 401s until the original deactivation's TTL
+    naturally expires -- which looks to them like a broken "session
+    expired" loop right after logging back in.
+    """
+    _get_redis().delete(f"blocklist:user:{user_id}")
+
+
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
         status_code=401,

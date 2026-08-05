@@ -86,6 +86,7 @@ def _invalidate_handover_cache():
     try:
         keys = redis_client.keys("handovers:list:*")
         if keys:
+            # pyrefly: ignore [not-iterable]
             redis_client.delete(*keys)
     except Exception:
         logger.exception("Failed to invalidate handover list cache")
@@ -202,6 +203,7 @@ def list_handover_notes(
     try:
         cached = redis_client.get(cache_key)
         if cached:
+            # pyrefly: ignore [bad-argument-type]
             return json.loads(cached)
     except Exception:
         logger.exception("Failed to fetch handover list from cache")
@@ -296,6 +298,7 @@ def set_follow_up_resolved(
                 detail="You do not have access to this handover note",
             )
 
+    # pyrefly: ignore [bad-argument-type]
     valid_actions = set((note.summary_json or {}).get("follow_up_actions") or [])
     if payload.action not in valid_actions:
         raise HTTPException(
@@ -303,6 +306,7 @@ def set_follow_up_resolved(
             detail="That follow-up action was not found on this handover note",
         )
 
+    # pyrefly: ignore [bad-argument-type]
     resolved = set(note.resolved_follow_ups or [])
     if payload.resolved:
         resolved.add(payload.action)

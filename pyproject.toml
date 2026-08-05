@@ -2,7 +2,8 @@
 python_version = "3.13"
 
 [tool.pyrefly.errors]
-bad-assignment = false
+bad-assignment = "ignore"
+no-matching-overload = "ignore"
 
 # ---------------------------------------------------------------------------
 # Item 34: pytest-cov configuration

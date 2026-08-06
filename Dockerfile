@@ -27,7 +27,8 @@ RUN adduser \
     --uid "${UID}" \
     appuser
 
-RUN mkdir -p /app/audio_uploads && chown -R appuser:appuser /app/audio_uploads
+RUN mkdir -p /app/audio_uploads /app/app/whisper_models \
+    && chown -R appuser:appuser /app/audio_uploads /app/app/whisper_models
 COPY --from=builder --chown=appuser:appuser /root/.local /home/appuser/.local
 COPY --chown=appuser:appuser . .
 

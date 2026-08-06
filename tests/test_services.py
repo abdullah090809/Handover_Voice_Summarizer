@@ -10,7 +10,7 @@ import json
 import smtplib
 import subprocess
 from unittest.mock import MagicMock, patch, call
-
+from app.services.summarizer import GeminiOutputParseError
 import pytest
 
 
@@ -173,6 +173,7 @@ class TestEmailService:
 _VALID_SUMMARY = {
     "resident_name": "Jane Doe",
     "summary": "Routine shift, no incidents.",
+    "translated_transcript": "Patient slept well.",
     "key_events": [],
     "medications_given": ["Paracetamol 500mg"],
     "incidents": [],
@@ -223,7 +224,7 @@ class TestSummarizerService:
         with patch("app.services.summarizer.client") as mock_client:
             mock_client.models.generate_content.return_value = _make_gemini_response("not json at all")
             from app.services.summarizer import summarize_transcript
-            with pytest.raises(json.JSONDecodeError):
+            with pytest.raises(GeminiOutputParseError):
                 summarize_transcript("Hello")
 
     def test_invalid_urgency_flag_raises_validation_error(self):
@@ -234,7 +235,7 @@ class TestSummarizerService:
             mock_client.models.generate_content.return_value = _make_gemini_response(json.dumps(bad))
             from app.services.summarizer import summarize_transcript
             from pydantic import ValidationError
-            with pytest.raises(ValidationError):
+            with pytest.raises(GeminiOutputParseError):
                 summarize_transcript("Bad urgency")
 
     def test_no_response_text_raises(self):

@@ -19,29 +19,21 @@ import {
     UserCog,
 } from 'lucide-react';
 import { userApi, resolveFileUrl, ApiError } from '../lib/api.js';
+import { useAuth } from '../lib/AuthContext.jsx';
 import { useToast } from '../lib/ToastContext.jsx';
 import { Avatar, ErrorState } from '../components/States.jsx';
 import { RoleBadge } from '../components/Badge.jsx';
 import { displayName, formatDate, roleLabel, employmentStatusLabel, employmentTypeLabel } from '../lib/format.js';
 import ManagerFormModal from '../components/ManagerFormModal.jsx';
 import AssignmentChips from '../components/AssignmentChips.jsx';
+import { ReadField } from '../components/ProfileFields.jsx';
+import ProfileTabs from '../components/ProfileTabs.jsx';
 
 const TABS = [
     { key: 'overview', label: 'Overview' },
     { key: 'employment', label: 'Employment Information' },
     { key: 'management', label: 'Management Information' },
 ];
-
-function ReadField({ icon: Icon, label, value, fullWidth }) {
-    return (
-        <div className={`profile-field${fullWidth ? ' profile-field-full' : ''}`}>
-            <span className="profile-field-label">
-                <Icon size={13} /> {label}
-            </span>
-            <div className="profile-field-value">{value || <span style={{ color: 'var(--text-tertiary)' }}>Not recorded</span>}</div>
-        </div>
-    );
-}
 
 /**
  * Stage 4: dedicated Manager Profile page, mirroring CareWorkerProfilePage's
@@ -63,6 +55,7 @@ export default function ManagerProfilePage() {
     const { id } = useParams();
     const navigate = useNavigate();
     const showToast = useToast();
+    const { isManager } = useAuth();
 
     const [member, setMember] = useState(null);
     const [error, setError] = useState(null);
@@ -124,27 +117,16 @@ export default function ManagerProfilePage() {
                             )}
                         </div>
                     </div>
-                    <div className="profile-hero-actions">
-                        <button type="button" className="btn btn-primary btn-sm" aria-label="Edit manager profile" onClick={() => setEditing(true)}>
-                            <Pencil size={14} /> Edit
-                        </button>
-                    </div>
+                    {isManager && (
+                        <div className="profile-hero-actions">
+                            <button type="button" className="btn btn-primary btn-sm" aria-label="Edit manager profile" onClick={() => setEditing(true)}>
+                                <Pencil size={14} /> Edit
+                            </button>
+                        </div>
+                    )}
                 </div>
 
-                <div className="record-tabs" style={{ margin: 'var(--space-5) var(--space-6) 0', overflowX: 'auto' }}>
-                    {TABS.map((t) => (
-                        <button
-                            key={t.key}
-                            type="button"
-                            className={`record-tab-btn${tab === t.key ? ' active' : ''}`}
-                            onClick={() => setTab(t.key)}
-                            style={{ flex: 'none', padding: '0 var(--space-4)' }}
-                        >
-                            {t.label}
-                        </button>
-                    ))}
-                </div>
-
+                <ProfileTabs tabs={TABS} active={tab} onChange={setTab}>
                 {tab === 'overview' && (
                     <div className="profile-field-grid">
                         <ReadField icon={UserRound} label="Full name" value={member.name} />
@@ -211,6 +193,7 @@ export default function ManagerProfilePage() {
                         </div>
                     </div>
                 )}
+                </ProfileTabs>
             </div>
 
             {editing && (

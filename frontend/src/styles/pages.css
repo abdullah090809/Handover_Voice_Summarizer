@@ -585,6 +585,15 @@
   font-family: var(--font-mono);
 }
 
+/* Resident code shown inline next to the name on handover cards, so two
+   residents sharing a name can still be told apart at a glance. */
+.entity-card-title-code {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  color: var(--text-tertiary);
+  font-size: var(--text-sm);
+}
+
 .entity-card-body {
   display: flex;
   flex-direction: column;
@@ -899,19 +908,42 @@
   background: var(--surface-hover-strong);
   border-radius: var(--radius-md);
   padding: 3px;
-  /* Profile pages (Resident/CareWorker/Manager) render this with tabs
-     sized to their label (not the equal-flex default below) plus
-     overflow-x: auto, so on desktop a long tab set scrolls sideways
-     instead of squeezing every label unreadably thin. On a phone that
-     produced an actual horizontal scrollbar inside the card -- not
-     something to reach for on mobile. Let the tabs wrap onto a second
-     row there instead; nothing to horizontally scroll at all. */
 }
 
 @media (max-width: 640px) {
   .record-tabs {
     flex-wrap: wrap;
-    overflow-x: visible !important;
+  }
+}
+
+/* Profile pages (Resident/CareWorker/Manager) have more tabs than fit
+   comfortably at equal-flex width, so this variant sizes each tab to its
+   label and scrolls horizontally instead of wrapping or squeezing labels
+   thin -- see .record-tabs-profile .record-tab-btn below.
+   Previously this scroll behavior (and the margin around the tab strip)
+   was duplicated as an inline `style={{...}}` on each of the three profile
+   pages, and was *disabled* below 640px in favor of wrapping. Wrapping
+   unevenly-sized, left-aligned tab labels onto multiple rows produces a
+   lopsided strip (short labels stranded next to long ones) rather than a
+   clean scrollable strip, so on mobile profile tabs scroll horizontally
+   too, same as desktop. */
+.record-tabs-profile {
+  margin: var(--space-5) var(--space-6) 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+.record-tabs-profile .record-tab-btn {
+  flex: none;
+  padding: 0 var(--space-4);
+}
+
+@media (max-width: 640px) {
+  .record-tabs.record-tabs-profile {
+    margin: var(--space-4) var(--space-5) 0;
+    flex-wrap: nowrap;
+    overflow-x: auto !important;
   }
 }
 
@@ -941,6 +973,62 @@
 .record-tab-btn svg {
   width: 15px;
   height: 15px;
+}
+
+/* Wrapper for ProfileTabs (Resident/CareWorker/Manager profile pages).
+   display:flex + flex-direction:column lets the content block below be
+   repositioned purely with the `order` values ProfileTabs sets inline --
+   see the component for how that lines it up under the active section on
+   both desktop (pill strip) and mobile (accordion). */
+.profile-tabs {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Accordion header, one per section. Hidden on desktop -- the pill strip
+   above (.record-tabs-profile) is the section switcher there. */
+.profile-tab-accordion-header {
+  display: none;
+}
+
+@media (max-width: 640px) {
+
+  /* The pill strip doesn't have room for four full labels on a phone and
+     either truncates or requires discovering horizontal scroll. Swap to
+     the stacked accordion headers below instead. */
+  .record-tabs.record-tabs-profile {
+    display: none;
+  }
+
+  .profile-tab-accordion-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin: 0 var(--space-5);
+    padding: var(--space-4) 0;
+    background: none;
+    border: none;
+    border-top: 1px solid var(--border-subtle);
+    text-align: left;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+
+  .profile-tab-accordion-header:first-of-type {
+    margin-top: var(--space-4);
+    border-top: none;
+  }
+
+  .profile-tab-accordion-header.active {
+    color: var(--teal-700);
+  }
+
+  .profile-tab-content {
+    padding-bottom: var(--space-2);
+  }
 }
 
 .dropzone {
@@ -1378,6 +1466,7 @@
   position: relative;
   z-index: 1;
   display: flex;
+  align-items: center;
   gap: 8px;
   flex-shrink: 0;
 }

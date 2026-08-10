@@ -81,6 +81,7 @@ export default function DashboardPage() {
   }, [isManager, load]);
 
   const residentMap = useMemo(() => Object.fromEntries(residents.map((r) => [r.id, r.name])), [residents]);
+  const residentCodeMap = useMemo(() => Object.fromEntries(residents.map((r) => [r.id, r.resident_code])), [residents]);
 
   // Defensive guards: never assume `handovers` is an array, even after the
   // fetch-side fix above, in case the shape changes again upstream.
@@ -375,7 +376,15 @@ export default function DashboardPage() {
           }}
         />
       )}
-      {openNote && <HandoverDetailModal note={openNote} residentName={residentMap[openNote.resident_id]} canDelete={false} onClose={() => setOpenNote(null)} />}
+      {openNote && (
+        <HandoverDetailModal
+          note={openNote}
+          residentName={residentMap[openNote.resident_id]}
+          residentCode={residentCodeMap[openNote.resident_id]}
+          canDelete={false}
+          onClose={() => setOpenNote(null)}
+        />
+      )}
     </>
   );
 }

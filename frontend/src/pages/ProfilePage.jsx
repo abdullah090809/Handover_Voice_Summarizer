@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Pencil,
   Camera,
@@ -83,6 +83,20 @@ export default function ProfilePage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showManagerEditModal, setShowManagerEditModal] = useState(false);
   const fileInputRef = useRef(null);
+
+  // `user` lives in AuthContext and is fetched once when the app loads (or
+  // after this page's own edit modals save). Derived fields like
+  // `residents_overseen` can change from *other* pages though -- e.g.
+  // editing a resident's `care_home` from ResidentProfilePage, or another
+  // manager's own care_home from theirs -- and nothing tells AuthContext
+  // to refetch when that happens elsewhere. A full browser reload just
+  // happens to re-run AuthContext's initial fetch, which is why that
+  // "fixed" it. Refetching on every mount here means simply navigating
+  // back to /profile always shows current data, no reload needed.
+  useEffect(() => {
+    refreshUser().catch(() => { });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (!user) return null;
 

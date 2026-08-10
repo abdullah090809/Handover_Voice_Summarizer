@@ -32,7 +32,7 @@ import { residentApi, handoverApi, userApi, assignmentApi, ApiError } from '../l
 import { useAuth } from '../lib/AuthContext.jsx';
 import { useToast } from '../lib/ToastContext.jsx';
 import { useConfirm } from '../lib/ConfirmContext.jsx';
-import { Avatar, EmptyState, ErrorState } from '../components/States.jsx';
+import { Avatar, EmptyState, ErrorState, SkeletonGrid } from '../components/States.jsx';
 import { ResidentStatusBadge } from '../components/Badge.jsx';
 import { formatDate, displayName, employmentStatusLabel } from '../lib/format.js';
 import ResidentFormModal from '../components/ResidentFormModal.jsx';
@@ -40,6 +40,17 @@ import HandoverCard from '../components/HandoverCard.jsx';
 import HandoverDetailModal from '../components/HandoverDetailModal.jsx';
 import AssignmentChips from '../components/AssignmentChips.jsx';
 import AssignmentModal from '../components/AssignmentModal.jsx';
+import { ReadField, ChipListField } from '../components/ProfileFields.jsx';
+import ProfileTabs from '../components/ProfileTabs.jsx';
+import Pagination from '../components/Pagination.jsx';
+
+// Handover notes are paginated server-side (GET /handover returns
+// { total, results }, not a bare array -- see HandoversPage.jsx for the
+// same pattern). This tab previously stored that whole response object
+// as `handovers` and then called `.length` / `.map` on it directly,
+// which are both undefined on a plain object -- so the tab silently
+// rendered nothing at all, not even the "No handovers yet" empty state.
+const HANDOVERS_PAGE_SIZE = 6;
 
 const TABS = [
   { key: 'overview', label: 'Overview' },
@@ -47,42 +58,6 @@ const TABS = [
   { key: 'care', label: 'Care Information' },
   { key: 'handovers', label: 'Handover History' },
 ];
-
-// A field the resident record hasn't filled in yet — matches the empty-state
-// pattern already used on ProfilePage, but read-only here (no inline "add").
-function ReadField({ icon: Icon, label, value, fullWidth }) {
-  return (
-    <div className={`profile-field${fullWidth ? ' profile-field-full' : ''}`}>
-      <span className="profile-field-label">
-        <Icon size={13} /> {label}
-      </span>
-      <div className="profile-field-value">{value || <span style={{ color: 'var(--text-tertiary)' }}>Not recorded</span>}</div>
-    </div>
-  );
-}
-
-function ChipListField({ icon: Icon, label, items, emptyLabel }) {
-  return (
-    <div className="profile-field profile-field-full">
-      <span className="profile-field-label">
-        <Icon size={13} /> {label}
-      </span>
-      {items && items.length > 0 ? (
-        <div className="tag-strip">
-          {items.map((item, i) => (
-            <span key={i} className="badge badge-info">
-              {item}
-            </span>
-          ))}
-        </div>
-      ) : (
-        <div className="profile-field-value">
-          <span style={{ color: 'var(--text-tertiary)' }}>{emptyLabel}</span>
-        </div>
-      )}
-    </div>
-  );
-}
 
 export default function ResidentProfilePage() {
   const { id } = useParams();
@@ -96,9 +71,13 @@ export default function ResidentProfilePage() {
   const [tab, setTab] = useState('overview');
   const [editing, setEditing] = useState(false);
 
-  const [handovers, setHandovers] = useState(null);
+  const [handovers, setHandovers] = useState(null); // current page of results only
+  const [handoverTotal, setHandoverTotal] = useState(0); // true record count from the API
+  const [handoverPage, setHandoverPage] = useState(1);
   const [handoverError, setHandoverError] = useState(null);
   const [openNote, setOpenNote] = useState(null);
+
+  const handoverPageCount = Math.max(1, Math.ceil(handoverTotal / HANDOVERS_PAGE_SIZE));
 
   const [assigning, setAssigning] = useState(false);
   const [careWorkerOptions, setCareWorkerOptions] = useState(null);
@@ -117,19 +96,35 @@ export default function ResidentProfilePage() {
     load();
   }, [load]);
 
+  useEffect(() => {
+    setHandovers(null);
+    setHandoverPage(1);
+  }, [id]);
+
   const loadHandovers = useCallback(async () => {
     setHandoverError(null);
     try {
-      const data = await handoverApi.list({ residentId: id, limit: 50 });
-      setHandovers(data);
+      const data = await handoverApi.list({
+        residentId: id,
+        skip: (handoverPage - 1) * HANDOVERS_PAGE_SIZE,
+        limit: HANDOVERS_PAGE_SIZE,
+      });
+      setHandovers(data.results);
+      setHandoverTotal(typeof data.total === 'number' ? data.total : data.results.length);
     } catch (err) {
       setHandoverError(err instanceof ApiError ? err.message : 'Could not load handover history.');
     }
-  }, [id]);
+  }, [id, handoverPage]);
 
   useEffect(() => {
-    if (tab === 'handovers' && handovers === null) loadHandovers();
-  }, [tab, handovers, loadHandovers]);
+    if (tab === 'handovers') loadHandovers();
+  }, [tab, handoverPage, loadHandovers]);
+
+  // If a note gets removed elsewhere and the page falls out of range,
+  // snap back instead of showing an empty page.
+  useEffect(() => {
+    if (handoverPage > handoverPageCount) setHandoverPage(handoverPageCount);
+  }, [handoverPage, handoverPageCount]);
 
   async function handleDelete() {
     const ok = await confirm({
@@ -228,7 +223,7 @@ export default function ResidentProfilePage() {
             </div>
           </div>
           {isManager && (
-            <div style={{ marginLeft: 'auto', position: 'relative', zIndex: 1, display: 'flex', gap: 8, flexShrink: 0 }}>
+            <div className="profile-hero-actions">
               <button type="button" className="btn btn-primary btn-sm" aria-label="Edit resident" onClick={() => setEditing(true)}>
                 <Pencil size={14} /> Edit
               </button>
@@ -239,106 +234,104 @@ export default function ResidentProfilePage() {
           )}
         </div>
 
-        <div className="record-tabs" style={{ margin: 'var(--space-5) var(--space-6) 0', overflowX: 'auto' }}>
-          {TABS.map((t) => (
-            <button
-              key={t.key}
-              type="button"
-              className={`record-tab-btn${tab === t.key ? ' active' : ''}`}
-              onClick={() => setTab(t.key)}
-              style={{ flex: 'none', padding: '0 var(--space-4)' }}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+        <ProfileTabs tabs={TABS} active={tab} onChange={setTab}>
+          {tab === 'overview' && (
+            <div className="profile-field-grid">
+              <ReadField icon={UserRound} label="Full name" value={resident.name} />
+              <ReadField icon={BadgeCheck} label="Preferred name" value={resident.preferred_name} />
+              <ReadField icon={Cake} label="Date of birth" value={resident.date_of_birth ? formatDate(resident.date_of_birth) : null} />
+              <ReadField icon={UserRound} label="Gender" value={resident.gender} />
+              <ReadField icon={CalendarDays} label="Admission date" value={resident.admission_date ? formatDate(resident.admission_date) : null} />
+              <ReadField icon={DoorOpen} label="Room number" value={resident.room_number} />
+              <ReadField icon={Building2} label="Ward / unit" value={resident.ward_unit} />
+              <ReadField icon={Home} label="Care home" value={resident.care_home} />
+              <ReadField icon={Church} label="Religion / beliefs" value={resident.religion} />
+              <ReadField icon={Globe2} label="Ethnicity" value={resident.ethnicity} />
+              <ReadField icon={Globe2} label="Preferred language" value={resident.preferred_language} />
+              <div className="profile-field profile-field-full">
+                <span className="profile-field-label">
+                  <Phone size={13} /> Emergency contact
+                </span>
+                <div className="profile-field-value" style={{ minHeight: 'unset', padding: 'var(--space-3)' }}>
+                  {resident.emergency_contact_name ? (
+                    <>
+                      {resident.emergency_contact_name}
+                      {resident.emergency_contact_relationship ? ` \u00b7 ${resident.emergency_contact_relationship}` : ''}
+                      {resident.emergency_contact_phone ? ` \u00b7 ${resident.emergency_contact_phone}` : ''}
+                    </>
+                  ) : (
+                    <span style={{ color: 'var(--text-tertiary)' }}>Not recorded</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
-        {tab === 'overview' && (
-          <div className="profile-field-grid">
-            <ReadField icon={UserRound} label="Full name" value={resident.name} />
-            <ReadField icon={BadgeCheck} label="Preferred name" value={resident.preferred_name} />
-            <ReadField icon={Cake} label="Date of birth" value={resident.date_of_birth ? formatDate(resident.date_of_birth) : null} />
-            <ReadField icon={UserRound} label="Gender" value={resident.gender} />
-            <ReadField icon={CalendarDays} label="Admission date" value={resident.admission_date ? formatDate(resident.admission_date) : null} />
-            <ReadField icon={DoorOpen} label="Room number" value={resident.room_number} />
-            <ReadField icon={Building2} label="Ward / unit" value={resident.ward_unit} />
-            <ReadField icon={Home} label="Care home" value={resident.care_home} />
-            <ReadField icon={Church} label="Religion / beliefs" value={resident.religion} />
-            <ReadField icon={Globe2} label="Ethnicity" value={resident.ethnicity} />
-            <ReadField icon={Globe2} label="Preferred language" value={resident.preferred_language} />
-            <div className="profile-field profile-field-full">
-              <span className="profile-field-label">
-                <Phone size={13} /> Emergency contact
-              </span>
-              <div className="profile-field-value" style={{ minHeight: 'unset', padding: 'var(--space-3)' }}>
-                {resident.emergency_contact_name ? (
-                  <>
-                    {resident.emergency_contact_name}
-                    {resident.emergency_contact_relationship ? ` \u00b7 ${resident.emergency_contact_relationship}` : ''}
-                    {resident.emergency_contact_phone ? ` \u00b7 ${resident.emergency_contact_phone}` : ''}
-                  </>
-                ) : (
-                  <span style={{ color: 'var(--text-tertiary)' }}>Not recorded</span>
+          {tab === 'medical' && (
+            <div className="profile-field-grid">
+              <ChipListField icon={HeartPulse} label="Medical conditions" items={resident.medical_conditions} emptyLabel="None recorded" />
+              <ChipListField icon={ShieldAlert} label="Allergies" items={resident.allergies} emptyLabel="No known allergies recorded" />
+              <ChipListField icon={Pill} label="Current medications" items={resident.current_medications} emptyLabel="None recorded" />
+              <ReadField icon={Accessibility} label="Disability" value={resident.disability} fullWidth />
+              <ReadField icon={Accessibility} label="Mobility status" value={resident.mobility_status} />
+              <ReadField icon={Utensils} label="Dietary requirements" value={resident.dietary_requirements} />
+              <ReadField icon={MessageCircle} label="Communication requirements" value={resident.communication_requirements} />
+              <ReadField icon={Ear} label="Sensory loss" value={resident.sensory_loss} />
+            </div>
+          )}
+
+          {tab === 'care' && (
+            <div className="profile-field-grid">
+              <ReadField icon={ClipboardList} label="Care level" value={resident.care_level} />
+              <ReadField icon={TriangleAlert} label="Risk level" value={resident.risk_level} />
+              <div className="profile-field profile-field-full">
+                <span className="profile-field-label">
+                  <Users size={13} /> Assigned care workers
+                </span>
+                <AssignmentChips items={resident.assigned_care_workers} kind="care_worker" emptyLabel="No care workers assigned" />
+                {isManager && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    style={{ alignSelf: 'flex-start', marginTop: 'var(--space-1)' }}
+                    onClick={openAssignCareWorkers}
+                  >
+                    <UserPlus size={14} /> Manage care workers
+                  </button>
                 )}
               </div>
+              <ReadField icon={NotebookPen} label="Behaviour notes" value={resident.behaviour_notes} fullWidth />
+              <ReadField icon={NotebookPen} label="Daily care notes" value={resident.daily_care_notes} fullWidth />
             </div>
-          </div>
-        )}
+          )}
 
-        {tab === 'medical' && (
-          <div className="profile-field-grid">
-            <ChipListField icon={HeartPulse} label="Medical conditions" items={resident.medical_conditions} emptyLabel="None recorded" />
-            <ChipListField icon={ShieldAlert} label="Allergies" items={resident.allergies} emptyLabel="No known allergies recorded" />
-            <ChipListField icon={Pill} label="Current medications" items={resident.current_medications} emptyLabel="None recorded" />
-            <ReadField icon={Accessibility} label="Disability" value={resident.disability} fullWidth />
-            <ReadField icon={Accessibility} label="Mobility status" value={resident.mobility_status} />
-            <ReadField icon={Utensils} label="Dietary requirements" value={resident.dietary_requirements} />
-            <ReadField icon={MessageCircle} label="Communication requirements" value={resident.communication_requirements} />
-            <ReadField icon={Ear} label="Sensory loss" value={resident.sensory_loss} />
-          </div>
-        )}
-
-        {tab === 'care' && (
-          <div className="profile-field-grid">
-            <ReadField icon={ClipboardList} label="Care level" value={resident.care_level} />
-            <ReadField icon={TriangleAlert} label="Risk level" value={resident.risk_level} />
-            <div className="profile-field profile-field-full">
-              <span className="profile-field-label">
-                <Users size={13} /> Assigned care workers
-              </span>
-              <AssignmentChips items={resident.assigned_care_workers} kind="care_worker" emptyLabel="No care workers assigned" />
-              {isManager && (
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  style={{ alignSelf: 'flex-start', marginTop: 'var(--space-1)' }}
-                  onClick={openAssignCareWorkers}
-                >
-                  <UserPlus size={14} /> Manage care workers
-                </button>
+          {tab === 'handovers' && (
+            <div style={{ padding: 'var(--space-6)' }}>
+              {handovers === null && !handoverError && <SkeletonGrid count={3} />}
+              {handoverError && <ErrorState message={handoverError} onRetry={loadHandovers} />}
+              {handovers !== null && handovers.length === 0 && (
+                <EmptyState icon={FileAudio} title="No handovers yet" message="Handover notes for this resident will appear here." />
+              )}
+              {handovers !== null && handovers.length > 0 && (
+                <>
+                  <div className="card-grid">
+                    {handovers.map((note) => (
+                      <HandoverCard key={note.id} note={note} residentName={resident.name} canDelete={false} onOpen={setOpenNote} />
+                    ))}
+                  </div>
+                  <Pagination
+                    page={handoverPage}
+                    pageCount={handoverPageCount}
+                    total={handoverTotal}
+                    pageSize={HANDOVERS_PAGE_SIZE}
+                    onPageChange={setHandoverPage}
+                    itemLabel="handover notes"
+                  />
+                </>
               )}
             </div>
-            <ReadField icon={NotebookPen} label="Behaviour notes" value={resident.behaviour_notes} fullWidth />
-            <ReadField icon={NotebookPen} label="Daily care notes" value={resident.daily_care_notes} fullWidth />
-          </div>
-        )}
-
-        {tab === 'handovers' && (
-          <div style={{ padding: 'var(--space-6)' }}>
-            {handovers === null && !handoverError && <div className="skeleton-rows"><div className="skeleton-line" /><div className="skeleton-line" /></div>}
-            {handoverError && <ErrorState message={handoverError} onRetry={loadHandovers} />}
-            {handovers !== null && handovers.length === 0 && (
-              <EmptyState icon={FileAudio} title="No handovers yet" message="Handover notes for this resident will appear here." />
-            )}
-            {handovers !== null && handovers.length > 0 && (
-              <div className="card-grid">
-                {handovers.map((note) => (
-                  <HandoverCard key={note.id} note={note} residentName={resident.name} canDelete={false} onOpen={setOpenNote} />
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+          )}
+        </ProfileTabs>
       </div>
 
       {editing && (

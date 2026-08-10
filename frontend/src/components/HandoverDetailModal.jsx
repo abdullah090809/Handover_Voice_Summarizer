@@ -6,7 +6,7 @@ import { Avatar } from './States.jsx';
 import { formatDateTime, formatHandoverCode } from '../lib/format.js';
 import { resolveFileUrl } from '../lib/api.js';
 
-export default function HandoverDetailModal({ note, residentName, canDelete, onClose, onDelete }) {
+export default function HandoverDetailModal({ note, residentName, residentCode, canDelete, onClose, onDelete }) {
   const [showTranscript, setShowTranscript] = useState(false);
   const [showTranslated, setShowTranslated] = useState(false);
   if (!note) return null;
@@ -21,7 +21,7 @@ export default function HandoverDetailModal({ note, residentName, canDelete, onC
   function exportText() {
     const lines = [
       `Handover Note ${formatHandoverCode(note.id)}`,
-      `Resident: ${residentName || note.resident_id}`,
+      `Resident: ${residentName || note.resident_id}${residentCode ? ` (${residentCode})` : ''}`,
       `Created: ${formatDateTime(note.created_at)}`,
       `Urgency: ${note.urgency_flag || 'n/a'}`,
       '',
@@ -56,7 +56,7 @@ export default function HandoverDetailModal({ note, residentName, canDelete, onC
       onClose={onClose}
       size="lg"
       title={residentName || `Resident #${note.resident_id}`}
-      subtitle={`${formatHandoverCode(note.id)} · Shift #${note.shift_number ?? note.shift_id} · ${formatDateTime(note.created_at)}`}
+      subtitle={`${residentCode ? residentCode + ' · ' : ''}${formatHandoverCode(note.id)} · Shift #${note.shift_number ?? note.shift_id} · ${formatDateTime(note.created_at)}`}
       footer={
         <>
           {canDelete && (

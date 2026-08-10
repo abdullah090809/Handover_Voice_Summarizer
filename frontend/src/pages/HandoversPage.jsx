@@ -117,6 +117,7 @@ export default function HandoversPage() {
   }, [location.state, notes]);
 
   const residentMap = useMemo(() => Object.fromEntries(residents.map((r) => [r.id, r.name])), [residents]);
+  const residentCodeMap = useMemo(() => Object.fromEntries(residents.map((r) => [r.id, r.resident_code])), [residents]);
 
   async function handleDelete(note) {
     const ok = await confirm({
@@ -175,7 +176,7 @@ export default function HandoversPage() {
           <option value="">All residents</option>
           {residents.map((r) => (
             <option key={r.id} value={r.id}>
-              {r.name}
+              {r.name}{r.resident_code ? ` (${r.resident_code})` : ''}
             </option>
           ))}
         </select>
@@ -209,6 +210,7 @@ export default function HandoversPage() {
                 key={note.id}
                 note={note}
                 residentName={residentMap[note.resident_id]}
+                residentCode={residentCodeMap[note.resident_id]}
                 canDelete={isManager}
                 onOpen={setOpenNote}
                 onDelete={handleDelete}
@@ -229,6 +231,7 @@ export default function HandoversPage() {
         <HandoverDetailModal
           note={notes?.find((n) => n.id === openNote.id) || openNote}
           residentName={residentMap[openNote.resident_id]}
+          residentCode={residentCodeMap[openNote.resident_id]}
           canDelete={isManager}
           onClose={() => setOpenNote(null)}
           onDelete={handleDelete}

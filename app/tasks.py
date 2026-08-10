@@ -204,7 +204,7 @@ def process_handover_note(self, note_id: int, tmp_path: str) -> None:
             logger.exception("Gemini summarization failed for note %s", note_id)
             note.status = "failed"  # pyrefly: ignore [bad-assignment]
             note.raw_transcript = transcript  # pyrefly: ignore [bad-assignment]
-            note.error_message = "Summary generation failed, but the transcript below was saved."  # pyrefly: ignore [bad-assignment]
+            note.error_message = "Structured summary generation failed"  # pyrefly: ignore [bad-assignment]
             db.commit()
             _publish_ws({"type": "handover_updated", "id": note_id, "status": "failed"})
             raise

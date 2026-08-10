@@ -1,3 +1,4 @@
+from app.models.assignment import ResidentAssignment
 from app.models.notification import Notification
 from app.models.resident import Resident
 
@@ -47,10 +48,23 @@ def test_create_resident_empty_name_allowed_by_schema(client, manager_auth_heade
 # GET /residents/  (role-based visibility)
 # ---------------------------------------------------------------------------
 
-def test_list_residents_as_worker_only_shows_active(client, worker_auth_headers, db_session):
+def test_list_residents_as_worker_only_shows_active(client, worker_auth_headers, db_session, test_user):
     active = Resident(name="Active Alice", status="active")
     discharged = Resident(name="Discharged Dan", status="discharged")
     db_session.add_all([active, discharged])
+    db_session.commit()
+    db_session.refresh(active)
+    db_session.refresh(discharged)
+
+    # Workers only see residents assigned to them (see residents.py's
+    # care-worker scoping), so both residents need to be on this worker's
+    # caseload for the status filter itself to be what's under test here.
+    db_session.add_all(
+        [
+            ResidentAssignment(resident_id=active.id, care_worker_id=test_user.id),
+            ResidentAssignment(resident_id=discharged.id, care_worker_id=test_user.id),
+        ]
+    )
     db_session.commit()
 
     response = client.get("/residents/", headers=worker_auth_headers)
@@ -134,7 +148,14 @@ def test_list_residents_negative_skip_rejected(client, manager_auth_headers):
 # GET /residents/{id}
 # ---------------------------------------------------------------------------
 
-def test_get_resident_by_id_success(client, worker_auth_headers, test_resident):
+def test_get_resident_by_id_success(client, worker_auth_headers, test_resident, test_user, db_session):
+    # Direct id lookup as a care worker requires the resident to be on
+    # their caseload (see residents.py's care-worker scoping).
+    db_session.add(
+        ResidentAssignment(resident_id=test_resident.id, care_worker_id=test_user.id)
+    )
+    db_session.commit()
+
     response = client.get(f"/residents/{test_resident.id}", headers=worker_auth_headers)
 
     assert response.status_code == 200
@@ -153,14 +174,22 @@ def test_get_nonexistent_resident_returns_404(client, worker_auth_headers):
     assert response.json()["detail"] == "Resident with id 99999 not found"
 
 
-def test_get_discharged_resident_still_viewable_by_id(client, worker_auth_headers, db_session):
+def test_get_discharged_resident_still_viewable_by_id(client, worker_auth_headers, db_session, test_user):
     """The list endpoint hides discharged residents from workers, but a
     direct id lookup is not filtered by status — documents current
-    behavior (there could be a legitimate need to view historical notes)."""
+    behavior (there could be a legitimate need to view historical notes).
+    The worker still needs the resident on their caseload, though (see
+    residents.py's care-worker scoping) -- that check runs regardless of
+    status."""
     discharged = Resident(name="Discharged Dan", status="discharged")
     db_session.add(discharged)
     db_session.commit()
     db_session.refresh(discharged)
+
+    db_session.add(
+        ResidentAssignment(resident_id=discharged.id, care_worker_id=test_user.id)
+    )
+    db_session.commit()
 
     response = client.get(f"/residents/{discharged.id}", headers=worker_auth_headers)
     assert response.status_code == 200

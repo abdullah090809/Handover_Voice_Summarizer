@@ -492,6 +492,95 @@ body {
 }
 
 /* ==========================================================================
+   MOBILE ACTION SHEET (Team page row menu, phones only)
+   The "..." row menu (ActionMenu in TeamPage.jsx) renders this instead of
+   the floating dropdown below 640px -- a full-width sheet that slides up
+   from the bottom, matching the same "full-screen overlay beats a cramped
+   inline control" reasoning already used for .mobile-search-overlay.
+   ========================================================================== */
+.mobile-action-sheet-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  background: rgba(11, 17, 27, 0.5);
+  display: flex;
+  align-items: flex-end;
+}
+
+.mobile-action-sheet {
+  width: 100%;
+  background: var(--surface-card);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-2) var(--space-3);
+  padding-bottom: max(var(--space-3), env(safe-area-inset-bottom, 0px));
+  animation: mobile-action-sheet-in var(--duration-fast) var(--ease-standard);
+}
+
+@keyframes mobile-action-sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+
+  to {
+    transform: translateY(0);
+  }
+}
+
+.mobile-action-sheet-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: var(--radius-full, 999px);
+  background: var(--border-default);
+  margin: var(--space-2) auto var(--space-3);
+}
+
+.mobile-action-sheet-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 52px;
+  padding: 0 var(--space-4);
+  background: none;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
+  color: var(--text-primary);
+  text-align: left;
+}
+
+.mobile-action-sheet-item:active {
+  background: var(--surface-hover-strong);
+}
+
+.mobile-action-sheet-item:disabled {
+  opacity: 0.45;
+}
+
+.mobile-action-sheet-item.danger {
+  color: var(--urgency-high);
+}
+
+.mobile-action-sheet-cancel {
+  width: 100%;
+  min-height: 52px;
+  margin-top: var(--space-2);
+  border: none;
+  border-top: 1px solid var(--border-subtle);
+  background: none;
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mobile-action-sheet {
+    animation: none;
+  }
+}
+
+/* ==========================================================================
    VIEW TRANSITIONS
    Uses the native View Transition API (enabled per-navigation via the
    `viewTransition` prop on <Link>/<NavLink>/<Navigate> and the

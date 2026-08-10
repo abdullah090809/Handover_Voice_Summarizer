@@ -3,7 +3,7 @@ import { Trash2, Download, ChevronDown, Pill, TriangleAlert, ListChecks, Smile, 
 import Modal from './Modal.jsx';
 import { UrgencyBadge, HandoverStatusBadge } from './Badge.jsx';
 import { Avatar } from './States.jsx';
-import { formatDateTime } from '../lib/format.js';
+import { formatDateTime, formatHandoverCode } from '../lib/format.js';
 import { resolveFileUrl } from '../lib/api.js';
 
 export default function HandoverDetailModal({ note, residentName, canDelete, onClose, onDelete }) {
@@ -15,12 +15,12 @@ export default function HandoverDetailModal({ note, residentName, canDelete, onC
 
   function exportJson() {
     const blob = new Blob([JSON.stringify(note, null, 2)], { type: 'application/json' });
-    downloadBlob(blob, `handover-${note.id}.json`);
+    downloadBlob(blob, `${formatHandoverCode(note.id)}.json`);
   }
 
   function exportText() {
     const lines = [
-      `Handover Note #${note.id}`,
+      `Handover Note ${formatHandoverCode(note.id)}`,
       `Resident: ${residentName || note.resident_id}`,
       `Created: ${formatDateTime(note.created_at)}`,
       `Urgency: ${note.urgency_flag || 'n/a'}`,
@@ -47,7 +47,7 @@ export default function HandoverDetailModal({ note, residentName, canDelete, onC
       s.translated_transcript || '—',
     ];
     const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
-    downloadBlob(blob, `handover-${note.id}.txt`);
+    downloadBlob(blob, `${formatHandoverCode(note.id)}.txt`);
   }
 
   return (
@@ -56,7 +56,7 @@ export default function HandoverDetailModal({ note, residentName, canDelete, onC
       onClose={onClose}
       size="lg"
       title={residentName || `Resident #${note.resident_id}`}
-      subtitle={`Handover #${note.id} · Shift #${note.shift_number ?? note.shift_id} · ${formatDateTime(note.created_at)}`}
+      subtitle={`${formatHandoverCode(note.id)} · Shift #${note.shift_number ?? note.shift_id} · ${formatDateTime(note.created_at)}`}
       footer={
         <>
           {canDelete && (

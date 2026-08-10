@@ -11,6 +11,7 @@ import HandoverDetailModal from '../components/HandoverDetailModal.jsx';
 import NewHandoverModal from '../components/NewHandoverModal.jsx';
 import { SkeletonGrid, EmptyState, ErrorState } from '../components/States.jsx';
 import Pagination from '../components/Pagination.jsx';
+import { formatHandoverCode } from '../lib/format.js';
 
 // Handover notes are paginated server-side (see /handover GET: skip/limit +
 // a `total` count). Previously this page fetched a single page of up to 50
@@ -120,7 +121,7 @@ export default function HandoversPage() {
   async function handleDelete(note) {
     const ok = await confirm({
       title: 'Delete this handover note?',
-      message: `This permanently removes note #${note.id} for ${residentMap[note.resident_id] || 'this resident'}. This can't be undone.`,
+      message: `This permanently removes ${formatHandoverCode(note.id)} for ${residentMap[note.resident_id] || 'this resident'}. This can't be undone.`,
       confirmLabel: 'Delete note',
     });
     if (!ok) return;

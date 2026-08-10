@@ -102,7 +102,7 @@ export default function CareWorkerFormModal({ user, onClose, onSaved }) {
             <form onSubmit={onSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
                 <div className="detail-section">
                     <div className="detail-section-title">Basic information</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 'var(--space-4)' }}>
+                    <div className="form-grid-2">
                         <Field label="Employee ID" htmlFor="cw-employee-id" optional hint="Auto-generated if left blank">
                             <IconInput icon={BadgeCheck} id="cw-employee-id" value={form.employee_id} onChange={set('employee_id')} autoFocus />
                         </Field>
@@ -128,7 +128,7 @@ export default function CareWorkerFormModal({ user, onClose, onSaved }) {
 
                 <div className="detail-section">
                     <div className="detail-section-title">Employment information</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 'var(--space-4)' }}>
+                    <div className="form-grid-2">
                         <Field label="Job title" htmlFor="cw-job-title" optional hint="e.g. Senior Care Worker">
                             <IconInput icon={Briefcase} id="cw-job-title" value={form.job_title} onChange={set('job_title')} />
                         </Field>
@@ -164,7 +164,7 @@ export default function CareWorkerFormModal({ user, onClose, onSaved }) {
 
                 <div className="detail-section">
                     <div className="detail-section-title">Emergency contact</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 'var(--space-4)' }}>
+                    <div className="form-grid-2">
                         <Field label="Contact name" htmlFor="cw-ec-name" optional>
                             <IconInput icon={UserRound} id="cw-ec-name" value={form.emergency_contact_name} onChange={set('emergency_contact_name')} />
                         </Field>

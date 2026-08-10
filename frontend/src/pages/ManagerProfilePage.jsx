@@ -52,6 +52,12 @@ function ReadField({ icon: Icon, label, value, fullWidth }) {
  * here -- assigning/removing a care worker's manager happens from that
  * care worker's own profile ("Change manager"), matching where the
  * underlying FK actually lives.
+ *
+ * "Residents overseen" is every resident sharing this manager's care_home
+ * (see User.residents_overseen / migration 41c101ed6a74) -- not just
+ * residents who happen to be on one of this manager's care workers'
+ * caseloads. It's read-only here too: set a resident's care_home from
+ * their own profile ("Edit"), or a manager's from theirs.
  */
 export default function ManagerProfilePage() {
     const { id } = useParams();
@@ -118,9 +124,9 @@ export default function ManagerProfilePage() {
                             )}
                         </div>
                     </div>
-                    <div style={{ marginLeft: 'auto', position: 'relative', zIndex: 1, display: 'flex', gap: 8, flexShrink: 0 }}>
-                        <button className="icon-btn" aria-label="Edit manager profile" onClick={() => setEditing(true)}>
-                            <Pencil size={16} />
+                    <div className="profile-hero-actions">
+                        <button type="button" className="btn btn-primary btn-sm" aria-label="Edit manager profile" onClick={() => setEditing(true)}>
+                            <Pencil size={14} /> Edit
                         </button>
                     </div>
                 </div>
@@ -199,6 +205,9 @@ export default function ManagerProfilePage() {
                                 <Users size={13} /> Residents overseen
                             </span>
                             <AssignmentChips items={member.residents_overseen} kind="resident" emptyLabel="No residents overseen yet" />
+                            <span className="field-hint">
+                                Every resident whose "Care home" matches this manager's. Set a resident's care home from their own profile.
+                            </span>
                         </div>
                     </div>
                 )}

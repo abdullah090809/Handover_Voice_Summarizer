@@ -30,6 +30,11 @@ class _ResidentFields(BaseModel):
     admission_date: date | None = None
     room_number: str | None = None
     ward_unit: str | None = None
+    # Free-text, matching users.care_home -- used to derive a manager's
+    # "residents overseen" (see User.residents_overseen / migration
+    # 41c101ed6a74). Not shown as a distinct form field to care workers;
+    # a manager sets it once per resident, typically matching their own.
+    care_home: str | None = None
 
     # Medical Information
     medical_conditions: list[str] = Field(default_factory=list)

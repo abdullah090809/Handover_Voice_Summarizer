@@ -998,6 +998,25 @@ table.data-table {
 /* ==========================================================================
    MODAL / DIALOG
    ========================================================================== */
+/* Two-column form field layout used across CareWorkerFormModal /
+   ManagerFormModal / ResidentFormModal. Was a duplicated inline style
+   (no responsive fallback) -- inside the 480px-max modal panel that
+   left each column ~150px wide on a phone, squeezing icon + label +
+   input until "(optional)" hints wrapped mid-word. Same fix pattern as
+   .profile-field-grid: real class so the mobile breakpoint can collapse
+   it to a single column. */
+.form-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+@media (max-width: 640px) {
+  .form-grid-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
 .modal-overlay {
   position: fixed;
   inset: 0;

@@ -77,6 +77,20 @@ export function employmentTypeLabel(s) {
   return map[s] || s;
 }
 
+// Handovers don't have their own `resident_code`-style column in the
+// database (unlike Resident.resident_code / User.employee_id) -- the
+// numeric primary key IS the record's identity, "HO-####" is purely a
+// display convention layered on top of it. Because it's a pure function of
+// the id (zero-pad to 4, prefix "HO-"), every screen that shows a handover
+// id computes it the same way via this one helper instead of formatting it
+// inline in five different places. Note `padStart(4, '0')` pads to a
+// *minimum* of 4 characters -- ids of 10000+ still show in full
+// ("HO-10000"), they're never truncated back down to 4 digits.
+export function formatHandoverCode(id) {
+  if (id === null || id === undefined) return '—';
+  return `HO-${String(id).padStart(4, '0')}`;
+}
+
 /** Truncates text to n characters, appending an ellipsis if it was cut. */
 export function truncate(text, n) {
   if (!text) return '';

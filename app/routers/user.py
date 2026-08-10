@@ -37,7 +37,8 @@ def get_current_user_info(
         .options(
             selectinload(User.manager),
             selectinload(User.assigned_residents),
-            selectinload(User.managed_care_workers).selectinload(User.assigned_residents),
+            selectinload(User.managed_care_workers),
+            selectinload(User.residents_at_care_home),
         )
         .filter(User.id == current_user.id)
         .first()
@@ -183,11 +184,12 @@ def list_users(
         .options(
             selectinload(User.manager),
             selectinload(User.assigned_residents),
-            # residents_overseen (a manager property) walks
-            # managed_care_workers -> each worker's own assigned_residents,
-            # so eager-load that second hop too, or it falls back to one
-            # lazy query per managed care worker per row.
-            selectinload(User.managed_care_workers).selectinload(User.assigned_residents),
+            selectinload(User.managed_care_workers),
+            # residents_overseen (a manager property) now reads
+            # residents_at_care_home (all residents sharing this manager's
+            # care_home), not managed_care_workers' caseloads -- eager-load
+            # it here or it falls back to one lazy query per row.
+            selectinload(User.residents_at_care_home),
         )
         .offset(skip)
         .limit(limit)
@@ -206,7 +208,8 @@ def get_user_detail(
         .options(
             selectinload(User.manager),
             selectinload(User.assigned_residents),
-            selectinload(User.managed_care_workers).selectinload(User.assigned_residents),
+            selectinload(User.managed_care_workers),
+            selectinload(User.residents_at_care_home),
         )
         .filter(User.id == id)
         .first()

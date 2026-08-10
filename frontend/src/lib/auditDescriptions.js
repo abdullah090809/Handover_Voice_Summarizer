@@ -1,3 +1,5 @@
+import { formatHandoverCode } from './format.js';
+
 // Translates a raw audit log entry (HTTP method + path) into a plain-English
 // description a non-technical manager can understand at a glance, plus a
 // coarse category used for badge coloring. The raw method/path is still
@@ -6,7 +8,8 @@
 //
 // Each rule is [regex matching the path, method it applies to, description
 // builder]. Regexes capture numeric IDs from the path so they can be
-// embedded in the sentence (e.g. "handover #49").
+// embedded in the sentence (e.g. "handover HO-0049").
+
 const RULES = [
     // Auth
     [/^\/register$/, 'POST', () => ({ text: 'Created an account', category: 'auth' })],

@@ -104,7 +104,7 @@ export default function ManagerFormModal({ user, onClose, onSaved }) {
             <form onSubmit={onSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
                 <div className="detail-section">
                     <div className="detail-section-title">Basic information</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 'var(--space-4)' }}>
+                    <div className="form-grid-2">
                         <Field label="Manager ID" htmlFor="mgr-employee-id" optional hint="Auto-generated if left blank">
                             <IconInput icon={BadgeCheck} id="mgr-employee-id" value={form.employee_id} onChange={set('employee_id')} autoFocus />
                         </Field>
@@ -130,7 +130,7 @@ export default function ManagerFormModal({ user, onClose, onSaved }) {
 
                 <div className="detail-section">
                     <div className="detail-section-title">Employment information</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 'var(--space-4)' }}>
+                    <div className="form-grid-2">
                         <Field label="Job title" htmlFor="mgr-job-title" optional hint="e.g. Care Home Manager">
                             <IconInput icon={Briefcase} id="mgr-job-title" value={form.job_title} onChange={set('job_title')} />
                         </Field>
@@ -163,7 +163,7 @@ export default function ManagerFormModal({ user, onClose, onSaved }) {
 
                 <div className="detail-section">
                     <div className="detail-section-title">Management information</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 'var(--space-4)' }}>
+                    <div className="form-grid-2">
                         <div style={{ gridColumn: '1 / -1' }}>
                             <Field label="Care home assigned" htmlFor="mgr-care-home" optional hint="Which site this manager oversees">
                                 <IconInput icon={Home} id="mgr-care-home" value={form.care_home} onChange={set('care_home')} />
@@ -174,7 +174,7 @@ export default function ManagerFormModal({ user, onClose, onSaved }) {
 
                 <div className="detail-section">
                     <div className="detail-section-title">Emergency contact</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 'var(--space-4)' }}>
+                    <div className="form-grid-2">
                         <Field label="Contact name" htmlFor="mgr-ec-name" optional>
                             <IconInput icon={UserRound} id="mgr-ec-name" value={form.emergency_contact_name} onChange={set('emergency_contact_name')} />
                         </Field>

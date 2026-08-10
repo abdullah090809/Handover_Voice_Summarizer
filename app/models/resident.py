@@ -24,6 +24,13 @@ class Resident(Base):
     admission_date = Column(Date, nullable=True)
     room_number = Column(String, nullable=True)
     ward_unit = Column(String, nullable=True)
+    # Free-text, matching users.care_home (see 6a229def2048) rather than an
+    # FK -- the app doesn't have a dedicated care_homes table (removed in
+    # d9ab0cc42d8e). Used to derive a manager's "residents overseen" as
+    # everyone at the same care home, not just residents on their care
+    # workers' caseloads. index=True since User.residents_at_care_home
+    # below filters on it.
+    care_home = Column(String, nullable=True, index=True)
 
     # --- Medical Information ---------------------------------------------------
     # String-list fields use Postgres arrays rather than a free-text blob so

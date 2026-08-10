@@ -30,7 +30,15 @@ def create_resident(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_manager),
 ):
-    new_resident = Resident(**resident.model_dump())
+    payload = resident.model_dump()
+    # Default a new resident's care_home to the creating manager's own,
+    # unless they explicitly set a different one on the form -- this is
+    # what "residents overseen" is derived from (see User.residents_overseen),
+    # so leaving it unset would silently exclude the resident from that
+    # manager's rollup.
+    if not payload.get("care_home"):
+        payload["care_home"] = current_user.care_home
+    new_resident = Resident(**payload)
     db.add(new_resident)
     db.commit()
     db.refresh(new_resident)

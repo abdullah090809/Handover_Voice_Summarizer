@@ -17,6 +17,7 @@ import {
   Ear,
   Accessibility,
   NotebookPen,
+  Home,
 } from 'lucide-react';
 import { residentApi, ApiError } from '../lib/api.js';
 
@@ -29,6 +30,7 @@ const EMPTY = {
   admission_date: '',
   room_number: '',
   ward_unit: '',
+  care_home: '',
   medical_conditions: [],
   allergies: [],
   current_medications: [],
@@ -184,7 +186,7 @@ export default function ResidentFormModal({ resident, onClose, onSaved }) {
       <form onSubmit={onSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
         <div className="detail-section">
           <div className="detail-section-title">Basic information</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 'var(--space-4)' }}>
+          <div className="form-grid-2">
             <Field label="Full name" htmlFor="resident-name">
               <IconInput icon={UserRound} id="resident-name" value={form.name} onChange={set('name')} autoFocus />
             </Field>
@@ -214,6 +216,9 @@ export default function ResidentFormModal({ resident, onClose, onSaved }) {
             </Field>
             <Field label="Ward / unit" htmlFor="resident-ward" optional>
               <IconInput icon={Building2} id="resident-ward" value={form.ward_unit} onChange={set('ward_unit')} />
+            </Field>
+            <Field label="Care home" htmlFor="resident-care-home" optional hint="Defaults to your own care home if left blank">
+              <IconInput icon={Home} id="resident-care-home" value={form.care_home} onChange={set('care_home')} />
             </Field>
           </div>
         </div>
@@ -248,7 +253,7 @@ export default function ResidentFormModal({ resident, onClose, onSaved }) {
                 placeholder="e.g. Metformin 500mg"
               />
             </Field>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 'var(--space-4)' }}>
+            <div className="form-grid-2">
               <Field label="Disability" htmlFor="resident-disability" optional>
                 <IconInput icon={Accessibility} id="resident-disability" value={form.disability} onChange={set('disability')} />
               </Field>
@@ -276,7 +281,7 @@ export default function ResidentFormModal({ resident, onClose, onSaved }) {
 
         <div className="detail-section">
           <div className="detail-section-title">Care information</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 'var(--space-4)' }}>
+          <div className="form-grid-2">
             <Field label="Care level" htmlFor="resident-care-level" optional>
               <select id="resident-care-level" className="select" value={form.care_level} onChange={set('care_level')}>
                 <option value="">Not specified</option>
@@ -305,7 +310,7 @@ export default function ResidentFormModal({ resident, onClose, onSaved }) {
 
         <div className="detail-section">
           <div className="detail-section-title">Emergency contact</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 'var(--space-4)' }}>
+          <div className="form-grid-2">
             <Field label="Contact name" htmlFor="resident-ec-name" optional>
               <IconInput icon={UserRound} id="resident-ec-name" value={form.emergency_contact_name} onChange={set('emergency_contact_name')} />
             </Field>
@@ -320,7 +325,7 @@ export default function ResidentFormModal({ resident, onClose, onSaved }) {
 
         <div className="detail-section">
           <div className="detail-section-title">Personal information</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 'var(--space-4)' }}>
+          <div className="form-grid-2">
             <Field label="Religion / beliefs" htmlFor="resident-religion" optional>
               <IconInput icon={Church} id="resident-religion" value={form.religion} onChange={set('religion')} />
             </Field>

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Trash2, Clock3, Loader2, TriangleAlert, UserRound } from 'lucide-react';
 import { UrgencyBadge, HandoverStatusBadge } from './Badge.jsx';
-import { formatRelative } from '../lib/format.js';
+import { formatRelative, formatHandoverCode } from '../lib/format.js';
 
 export default function HandoverCard({ note, residentName, canDelete, onOpen, onDelete }) {
   const urgency = note.urgency_flag || 'low';
@@ -19,9 +19,9 @@ export default function HandoverCard({ note, residentName, canDelete, onOpen, on
     >
       <div className="entity-card-top">
         <div className="entity-card-heading">
-          <div>
+          <div className="entity-card-heading-text">
             <div className="entity-card-title">{residentName || `Resident #${note.resident_id}`}</div>
-            <div className="entity-card-subtitle">Note #{note.id} &middot; Shift #{note.shift_number ?? note.shift_id}</div>
+            <div className="entity-card-subtitle">{formatHandoverCode(note.id)} &middot; Shift #{note.shift_number ?? note.shift_id}</div>
           </div>
         </div>
         {isPending ? <HandoverStatusBadge status={note.status} /> : isFailed ? <HandoverStatusBadge status="failed" /> : <UrgencyBadge urgency={urgency} />}

@@ -690,7 +690,7 @@ function ResidentCombobox({ residents, value, onChange }) {
               }}
             >
               <span>{r.name}</span>
-              <span className="combobox-option-id">#{r.id}</span>
+              <span className="combobox-option-id">{r.resident_code || `#${r.id}`}</span>
             </li>
           ))}
         </ul>

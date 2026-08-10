@@ -5,7 +5,7 @@ import { residentApi, userApi, handoverApi, resolveFileUrl } from '../lib/api.js
 import { useAuth } from '../lib/AuthContext.jsx';
 import { Avatar } from './States.jsx';
 import { UrgencyBadge } from './Badge.jsx';
-import { truncate } from '../lib/format.js';
+import { truncate, formatHandoverCode } from '../lib/format.js';
 
 // A bare number (no prefix) is kept as a legacy shortcut for "look up a
 // handover by its raw numeric id" -- this is the behavior the app already
@@ -63,7 +63,7 @@ const ID_LOOKUPS = {
     icon: FileAudio,
     fetch: (id) => handoverApi.get(id),
     matches: () => true,
-    title: (record, residentMap) => `#${record.id} \u00b7 ${residentMap[record.resident_id] || 'Resident'}`,
+    title: (record, residentMap) => `${formatHandoverCode(record.id)} \u00b7 ${residentMap[record.resident_id] || 'Resident'}`,
     subtitle: (record) => truncate(record.summary_json?.summary, 70) || 'No summary available',
     goTo: null, // handled specially -- opens the handover modal, not a route
   },

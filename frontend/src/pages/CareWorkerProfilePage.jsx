@@ -181,9 +181,9 @@ export default function CareWorkerProfilePage() {
                             )}
                         </div>
                     </div>
-                    <div style={{ marginLeft: 'auto', position: 'relative', zIndex: 1, display: 'flex', gap: 8, flexShrink: 0 }}>
-                        <button className="icon-btn" aria-label="Edit care worker profile" onClick={() => setEditing(true)}>
-                            <Pencil size={16} />
+                    <div className="profile-hero-actions">
+                        <button type="button" className="btn btn-primary btn-sm" aria-label="Edit care worker profile" onClick={() => setEditing(true)}>
+                            <Pencil size={14} /> Edit
                         </button>
                     </div>
                 </div>

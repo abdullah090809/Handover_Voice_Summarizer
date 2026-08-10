@@ -135,8 +135,8 @@ export default function TeamPage() {
                       {u.role === 'manager'
                         ? `${u.care_workers_managed_count} care worker${u.care_workers_managed_count === 1 ? '' : 's'}`
                         : u.role === 'care_worker'
-                        ? `${u.residents_overseen_count} resident${u.residents_overseen_count === 1 ? '' : 's'}`
-                        : '—'}
+                          ? `${u.residents_overseen_count} resident${u.residents_overseen_count === 1 ? '' : 's'}`
+                          : '—'}
                     </td>
                     <td data-label="Joined" style={{ color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)' }}>{formatDate(u.created_at)}</td>
                     <td data-label="" style={{ textAlign: 'right' }}>
@@ -197,31 +197,81 @@ export default function TeamPage() {
 
 function ActionMenu({ items, anchorRect, onClose }) {
   const menuRef = useRef(null);
+  // Below 640px the floating dropdown (a 190px box pinned near a 44px tap
+  // target) reads as a cramped desktop leftover, not a mobile pattern --
+  // it's easy to mis-tap the row next to your thumb, and it visually
+  // collides with the "Team member" card content right above it. Below
+  // that width we instead render a full-width bottom sheet, matching the
+  // app's existing mobile-overlay convention (see .mobile-search-overlay).
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 640);
 
   useEffect(() => {
     function onDocClick(e) {
       if (e.target.closest && e.target.closest('[data-menu-trigger]')) return;
       if (menuRef.current && !menuRef.current.contains(e.target)) onClose();
     }
-    function onScrollOrResize() {
+    function onResize() {
+      setIsMobile(window.innerWidth <= 640);
+      onClose();
+    }
+    function onScroll() {
       onClose();
     }
     document.addEventListener('mousedown', onDocClick);
-    window.addEventListener('scroll', onScrollOrResize, true);
-    window.addEventListener('resize', onScrollOrResize);
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', onResize);
     function onKey(e) {
       if (e.key === 'Escape') onClose();
     }
     document.addEventListener('keydown', onKey);
     return () => {
       document.removeEventListener('mousedown', onDocClick);
-      window.removeEventListener('scroll', onScrollOrResize, true);
-      window.removeEventListener('resize', onScrollOrResize);
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', onResize);
       document.removeEventListener('keydown', onKey);
     };
   }, [onClose]);
 
+  // Bottom sheet locks page scroll behind it while open, same as the
+  // mobile search overlay.
+  useEffect(() => {
+    if (isMobile && anchorRect) {
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = '';
+      };
+    }
+  }, [isMobile, anchorRect]);
+
   if (!anchorRect) return null;
+
+  if (isMobile) {
+    return createPortal(
+      <div className="mobile-action-sheet-scrim" onClick={onClose}>
+        <div ref={menuRef} className="mobile-action-sheet" role="menu" onClick={(e) => e.stopPropagation()}>
+          <div className="mobile-action-sheet-handle" />
+          {items.map((item, i) => (
+            <button
+              key={i}
+              role="menuitem"
+              className={`mobile-action-sheet-item${item.danger ? ' danger' : ''}`}
+              disabled={item.disabled}
+              onClick={() => {
+                onClose();
+                item.onClick();
+              }}
+            >
+              <item.icon size={18} /> {item.label}
+            </button>
+          ))}
+          <button className="mobile-action-sheet-cancel" onClick={onClose}>
+            Cancel
+          </button>
+        </div>
+      </div>,
+      document.body
+    );
+  }
 
   const menuWidth = 190;
   // Keep the menu on-screen: align to the button's right edge, flip left if

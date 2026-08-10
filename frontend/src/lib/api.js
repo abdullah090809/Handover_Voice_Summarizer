@@ -95,7 +95,18 @@ async function parse(responsePromise) {
   const data = hasJson ? await res.json().catch(() => null) : null;
 
   if (!res.ok) {
-    const message = (data && (data.detail || data.error)) || `Request failed (${res.status})`;
+    let message = (data && (data.detail || data.error)) || `Request failed (${res.status})`;
+    // FastAPI's request-validation handler (app/main.py) puts the actually
+    // useful info in `details` (a list of {loc, msg} per bad field) --
+    // `error` alone is always just the generic literal "Validation Error".
+    // Surface the first field/reason inline so a broken request is
+    // self-diagnosing from the on-screen error instead of requiring
+    // devtools/network-tab digging every time this shows up.
+    if (data && Array.isArray(data.details) && data.details.length) {
+      const first = data.details[0];
+      const field = Array.isArray(first.loc) ? first.loc.slice(1).join('.') : first.loc;
+      message = `${message}${field ? ` (${field})` : ''}: ${first.msg}`;
+    }
     throw new ApiError(message, res.status, data);
   }
   return data;

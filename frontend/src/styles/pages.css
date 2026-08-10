@@ -561,9 +561,21 @@
   min-width: 0;
 }
 
+/* Mirrors the .team-member-row fix: without min-width: 0 on the text
+   column, a long resident/handover name can't shrink below its own
+   content width, so it pushes the card wider than its grid cell instead
+   of eliding — most visible on narrow phone-width cards. */
+.entity-card-heading-text {
+  min-width: 0;
+  flex: 1;
+}
+
 .entity-card-title {
   font-size: var(--text-base);
   font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .entity-card-subtitle {
@@ -887,6 +899,20 @@
   background: var(--surface-hover-strong);
   border-radius: var(--radius-md);
   padding: 3px;
+  /* Profile pages (Resident/CareWorker/Manager) render this with tabs
+     sized to their label (not the equal-flex default below) plus
+     overflow-x: auto, so on desktop a long tab set scrolls sideways
+     instead of squeezing every label unreadably thin. On a phone that
+     produced an actual horizontal scrollbar inside the card -- not
+     something to reach for on mobile. Let the tabs wrap onto a second
+     row there instead; nothing to horizontally scroll at all. */
+}
+
+@media (max-width: 640px) {
+  .record-tabs {
+    flex-wrap: wrap;
+    overflow-x: visible !important;
+  }
 }
 
 .record-tab-btn {
@@ -1340,6 +1366,20 @@
 
 .profile-hero-info .tag-strip {
   margin-top: var(--space-2);
+}
+
+/* Action buttons (Edit / Delete) pinned to the end of the hero row on
+   desktop. Extracted into a real class (was an inline style duplicated
+   across ResidentProfilePage/CareWorkerProfilePage/ManagerProfilePage)
+   so the mobile breakpoint below has something to target -- inline
+   styles can't be overridden from a media query. */
+.profile-hero-actions {
+  margin-left: auto;
+  position: relative;
+  z-index: 1;
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .settings-row {
@@ -1863,5 +1903,36 @@ button.profile-field-value.profile-field-value-empty:hover {
 
   .profile-progress-inline-card {
     padding: var(--space-4) var(--space-5) 0;
+  }
+
+  /* The plain (non-centered) .profile-hero used on Resident/CareWorker/
+     Manager profile pages lays out avatar + name + action buttons in one
+     row via flex, with the actions pinned right via margin-left: auto.
+     On a phone that row is wider than the viewport -- and since
+     mobile.css clips overflow (html,body { overflow-x: hidden }) instead
+     of scrolling, the avatar and edit/delete buttons were getting cut
+     off at the card edges rather than wrapping. Stack everything
+     vertically and center it instead, matching the .profile-hero-centered
+     variant already used on the self-view ProfilePage. */
+  .profile-hero {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: var(--space-4);
+    padding: var(--space-6) var(--space-5);
+  }
+
+  .profile-hero-info {
+    max-width: 100%;
+  }
+
+  .profile-hero-info .tag-strip {
+    justify-content: center;
+  }
+
+  .profile-hero-actions {
+    margin-left: 0;
+    width: 100%;
+    justify-content: center;
   }
 }

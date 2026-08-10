@@ -47,7 +47,7 @@ export default function ResidentDetailModal({ resident, isManager, onClose, onCh
       <div className="handover-meta-row" style={{ alignItems: 'center' }}>
         <ResidentStatusBadge status={resident.status} />
         {isManager && (
-          <div style={{ display: 'flex', gap: 'var(--space-2)', marginLeft: 'auto' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)', marginLeft: 'auto', justifyContent: 'flex-end' }}>
             {resident.status !== 'active' && (
               <button className="btn btn-secondary btn-sm" onClick={() => onChangeStatus(resident, 'active')}>
                 Mark active

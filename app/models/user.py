@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Date, ForeignKey, Integer, String, Text
-from sqlalchemy.orm import backref, relationship
+from sqlalchemy.orm import backref, foreign, relationship
 from sqlalchemy.sql.expression import text
 from sqlalchemy.sql.sqltypes import TIMESTAMP
 
@@ -128,19 +128,28 @@ class User(Base):
         viewonly=True,
     )
 
-    # --- Manager-side rollup (Stage 7 remaining work) -------------------------
-    # "Residents overseen" for a manager: the distinct set of residents
-    # assigned to any of this manager's care workers. There's no direct
-    # Manager<->Resident row anywhere -- it's derived by walking
-    # managed_care_workers -> each worker's own assigned_residents and
-    # de-duplicating (a resident can be on more than one care worker's
-    # caseload). For a care worker (or a manager with no reports yet),
-    # managed_care_workers is simply empty, so this naturally resolves to
-    # an empty list rather than needing a role check here.
+    # --- Manager-side rollup ---------------------------------------------------
+    # "Residents overseen" for a manager: every resident at the same
+    # care_home, not just residents who happen to be on one of this
+    # manager's care workers' caseloads. Both sides are the same free-text
+    # `care_home` field (see 6a229def2048 / 41c101ed6a74 -- there's no
+    # dedicated care_homes table, that was removed in d9ab0cc42d8e), so this
+    # is a string-equality join rather than a real FK relationship, hence
+    # foreign() marking which side SQLAlchemy should treat as the "foreign"
+    # column for join purposes.
+    residents_at_care_home = relationship(
+        "Resident",
+        primaryjoin="and_(foreign(Resident.care_home)==User.care_home, User.care_home.isnot(None))",
+        viewonly=True,
+    )
+
     @property
     def residents_overseen(self):
-        seen = {}
-        for worker in self.managed_care_workers:
-            for resident in worker.assigned_residents:
-                seen[resident.id] = resident
-        return list(seen.values())
+        """Empty for a care worker (their residents show up via
+        assigned_residents instead) or a manager with no care_home set on
+        their own profile yet -- deliberately not the empty-vs-populated
+        role check pattern used elsewhere, since a manager with no
+        care_home genuinely has nothing to derive this from."""
+        if self.role != "manager" or not self.care_home:
+            return []
+        return list(self.residents_at_care_home)

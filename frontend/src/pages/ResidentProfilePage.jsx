@@ -26,6 +26,7 @@ import {
   FileAudio,
   Users,
   UserPlus,
+  Home,
 } from 'lucide-react';
 import { residentApi, handoverApi, userApi, assignmentApi, ApiError } from '../lib/api.js';
 import { useAuth } from '../lib/AuthContext.jsx';
@@ -228,8 +229,8 @@ export default function ResidentProfilePage() {
           </div>
           {isManager && (
             <div style={{ marginLeft: 'auto', position: 'relative', zIndex: 1, display: 'flex', gap: 8, flexShrink: 0 }}>
-              <button className="icon-btn" aria-label="Edit resident" onClick={() => setEditing(true)}>
-                <Pencil size={16} />
+              <button type="button" className="btn btn-primary btn-sm" aria-label="Edit resident" onClick={() => setEditing(true)}>
+                <Pencil size={14} /> Edit
               </button>
               <button className="icon-btn" aria-label="Remove resident" onClick={handleDelete}>
                 <Trash2 size={16} />
@@ -261,6 +262,7 @@ export default function ResidentProfilePage() {
             <ReadField icon={CalendarDays} label="Admission date" value={resident.admission_date ? formatDate(resident.admission_date) : null} />
             <ReadField icon={DoorOpen} label="Room number" value={resident.room_number} />
             <ReadField icon={Building2} label="Ward / unit" value={resident.ward_unit} />
+            <ReadField icon={Home} label="Care home" value={resident.care_home} />
             <ReadField icon={Church} label="Religion / beliefs" value={resident.religion} />
             <ReadField icon={Globe2} label="Ethnicity" value={resident.ethnicity} />
             <ReadField icon={Globe2} label="Preferred language" value={resident.preferred_language} />
@@ -362,13 +364,13 @@ export default function ResidentProfilePage() {
             careWorkerOptions === null
               ? null
               : careWorkerOptions.map((u) => ({
-                  id: u.id,
-                  label: displayName(u),
-                  sublabel:
-                    u.employment_status && u.employment_status !== 'active'
-                      ? [u.job_title, employmentStatusLabel(u.employment_status)].filter(Boolean).join(' · ')
-                      : u.job_title,
-                }))
+                id: u.id,
+                label: displayName(u),
+                sublabel:
+                  u.employment_status && u.employment_status !== 'active'
+                    ? [u.job_title, employmentStatusLabel(u.employment_status)].filter(Boolean).join(' · ')
+                    : u.job_title,
+              }))
           }
           initialSelectedIds={resident.assigned_care_workers.map((u) => u.id)}
           onClose={() => setAssigning(false)}

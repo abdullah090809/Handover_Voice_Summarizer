@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { Search } from 'lucide-react';
+import { Search, Check } from 'lucide-react';
 import Modal from './Modal.jsx';
 import { IconInput } from './Field.jsx';
+import { Avatar } from './States.jsx';
 import { ApiError } from '../lib/api.js';
 
 /**
@@ -108,10 +109,10 @@ export default function AssignmentModal({
           <div
             role={mode === 'single' ? 'radiogroup' : 'group'}
             aria-label={title}
-            style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', maxHeight: 340, overflowY: 'auto' }}
+            className="assignment-option-list"
           >
             {mode === 'single' && allowNone && (
-              <label className="checkbox-row">
+              <label className={`assignment-option${selected === null ? ' is-selected' : ''}`}>
                 <input
                   type="radio"
                   name="assignment-single"
@@ -119,33 +120,48 @@ export default function AssignmentModal({
                   checked={selected === null}
                   onChange={() => setSelected(null)}
                 />
-                <span style={{ color: 'var(--text-tertiary)' }}>{noneLabel}</span>
+                <span className="assignment-option-avatar assignment-option-avatar-none" aria-hidden="true">
+                  &ndash;
+                </span>
+                <span className="assignment-option-body">
+                  <span className="assignment-option-title" style={{ color: 'var(--text-tertiary)' }}>
+                    {noneLabel}
+                  </span>
+                </span>
+                <span className="assignment-option-check" aria-hidden="true">
+                  <Check size={14} />
+                </span>
               </label>
             )}
 
             {filtered.length === 0 && (
-              <div className="profile-field-value" style={{ minHeight: 'unset', padding: 'var(--space-3)' }} role="status">
-                <span style={{ color: 'var(--text-tertiary)' }}>
-                  {options.length === 0 ? emptyOptionsLabel : 'No matches.'}
-                </span>
+              <div className="assignment-option-empty" role="status">
+                {options.length === 0 ? emptyOptionsLabel : 'No matches.'}
               </div>
             )}
 
-            {filtered.map((opt) => (
-              <label key={opt.id} className="checkbox-row">
-                <input
-                  type={mode === 'single' ? 'radio' : 'checkbox'}
-                  name={mode === 'single' ? 'assignment-single' : undefined}
-                  aria-label={opt.sublabel ? `${opt.label}, ${opt.sublabel}` : opt.label}
-                  checked={mode === 'single' ? selected === opt.id : selected.has(opt.id)}
-                  onChange={() => toggle(opt.id)}
-                />
-                <span>
-                  {opt.label}
-                  {opt.sublabel && <span style={{ color: 'var(--text-tertiary)' }}> · {opt.sublabel}</span>}
-                </span>
-              </label>
-            ))}
+            {filtered.map((opt) => {
+              const isChecked = mode === 'single' ? selected === opt.id : selected.has(opt.id);
+              return (
+                <label key={opt.id} className={`assignment-option${isChecked ? ' is-selected' : ''}`}>
+                  <input
+                    type={mode === 'single' ? 'radio' : 'checkbox'}
+                    name={mode === 'single' ? 'assignment-single' : undefined}
+                    aria-label={opt.sublabel ? `${opt.label}, ${opt.sublabel}` : opt.label}
+                    checked={isChecked}
+                    onChange={() => toggle(opt.id)}
+                  />
+                  <Avatar text={opt.label} size="sm" />
+                  <span className="assignment-option-body">
+                    <span className="assignment-option-title">{opt.label}</span>
+                    {opt.sublabel && <span className="assignment-option-meta">{opt.sublabel}</span>}
+                  </span>
+                  <span className="assignment-option-check" aria-hidden="true">
+                    <Check size={14} />
+                  </span>
+                </label>
+              );
+            })}
           </div>
 
           {error && <div className="form-error-banner" role="alert">{error}</div>}

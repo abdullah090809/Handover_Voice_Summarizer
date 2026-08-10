@@ -56,7 +56,7 @@ export default function HandoverDetailModal({ note, residentName, canDelete, onC
       onClose={onClose}
       size="lg"
       title={residentName || `Resident #${note.resident_id}`}
-      subtitle={`Handover #${note.id} · Shift #${note.shift_id} · ${formatDateTime(note.created_at)}`}
+      subtitle={`Handover #${note.id} · Shift #${note.shift_number ?? note.shift_id} · ${formatDateTime(note.created_at)}`}
       footer={
         <>
           {canDelete && (

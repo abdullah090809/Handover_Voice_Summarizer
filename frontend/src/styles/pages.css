@@ -1479,6 +1479,53 @@
   gap: var(--space-2);
 }
 
+/* Section header used above a profile-field-grid on a standalone card
+   (e.g. "Employment information" panels) — icon + title/subtitle, with an
+   optional trailing action button, separated from the fields below by a
+   hairline rather than the old negative-margin subtitle hack. */
+.panel-section-header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-6);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.panel-section-header-icon {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--teal-50);
+  color: var(--teal-700);
+}
+
+.panel-section-header-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.panel-section-header-title {
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.panel-section-header-subtitle {
+  margin: 2px 0 0;
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+}
+
+@media (max-width: 640px) {
+  .panel-section-header {
+    padding: var(--space-4) var(--space-5);
+  }
+}
+
 @media (max-width: 720px) {
   .profile-security-grid {
     grid-template-columns: 1fr !important;
@@ -1578,34 +1625,45 @@
 
 /* ==========================================================================
    PROFILE COMPLETION — inline progress, not a card
-   Lives in the page header as a thin bar + label. The +Add affordances on
-   each empty field already say what's missing, so this is just an
-   at-a-glance sense of overall progress — it doesn't need to repeat the
-   checklist or compete for attention with its own colored panel.
+   Lives in the page header as a row of filled/unfilled step segments + a
+   label. Segmented (rather than one continuous bar) because the count of
+   segments doubles as "how many fields are left", and a flexible row of
+   segments reflows naturally at any width instead of needing a fixed pixel
+   track with its own mobile override. The +Add affordances on each empty
+   field already say what's missing, so this stays a quiet, at-a-glance
+   signal — it doesn't need to repeat the checklist or compete for
+   attention with its own colored panel.
    ========================================================================== */
 .profile-progress-inline {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
   margin-top: var(--space-3);
 }
 
-.profile-progress-track {
-  width: 120px;
+.profile-progress-steps {
+  display: flex;
+  gap: 3px;
+  flex: 1 1 120px;
+  min-width: 90px;
+  max-width: 220px;
+}
+
+.profile-progress-step {
+  flex: 1;
   height: 5px;
+  min-width: 6px;
   border-radius: var(--radius-full);
   background: var(--surface-hover-strong);
-  overflow: hidden;
+  transition: background var(--duration-slow) var(--ease-standard);
 }
 
-.profile-progress-fill {
-  height: 100%;
+.profile-progress-step.is-filled {
   background: var(--teal-500);
-  border-radius: var(--radius-full);
-  transition: width var(--duration-slow) var(--ease-standard);
 }
 
-.profile-progress-inline span {
+.profile-progress-label {
   font-size: var(--text-xs);
   font-weight: 600;
   color: var(--text-tertiary);
@@ -1613,8 +1671,8 @@
 }
 
 @media (max-width: 600px) {
-  .profile-progress-track {
-    width: 90px;
+  .profile-progress-steps {
+    flex-basis: 90px;
   }
 }
 

@@ -28,6 +28,7 @@ import { displayName, formatDate, roleLabel, employmentStatusLabel, employmentTy
 import { userApi, resolveFileUrl, ApiError } from '../lib/api.js';
 import EditProfileModal from '../components/EditProfileModal.jsx';
 import ManagerFormModal from '../components/ManagerFormModal.jsx';
+import AssignmentChips from '../components/AssignmentChips.jsx';
 
 // A field the person hasn't filled in yet is rendered as an inline action,
 // not a flat "Not set" — the empty state is a place to add the value, not
@@ -50,15 +51,27 @@ function ReadField({ icon: Icon, label, value, emptyLabel, onAdd, fullWidth }) {
 }
 
 // Employment/personal fields are manager-managed (see CareWorkerFormModal),
-// so unlike ReadField above these render read-only here with no "+ Add"
-// affordance — there's nothing for the care worker themselves to click into.
-function StaticField({ icon: Icon, label, value, fullWidth }) {
+// so by default these render read-only with no "+ Add" affordance — there's
+// nothing for a care worker to click into. When `onAdd` is passed (the
+// manager's own employment panel, which *is* self-editable), an empty field
+// becomes a clickable affordance just like ReadField above.
+function StaticField({ icon: Icon, label, value, emptyLabel, onAdd, fullWidth }) {
   return (
     <div className={`profile-field${fullWidth ? ' profile-field-full' : ''}`}>
       <span className="profile-field-label">
         <Icon size={13} /> {label}
       </span>
-      <div className="profile-field-value">{value || <span style={{ color: 'var(--text-tertiary)' }}>Not recorded</span>}</div>
+      {value ? (
+        <div className="profile-field-value">{value}</div>
+      ) : onAdd ? (
+        <button type="button" className="profile-field-value profile-field-value-empty" onClick={onAdd}>
+          <Plus size={12} /> Add {emptyLabel || label.toLowerCase()}
+        </button>
+      ) : (
+        <div className="profile-field-value">
+          <span style={{ color: 'var(--text-tertiary)' }}>Not recorded</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -152,10 +165,12 @@ export default function ProfilePage() {
 
         {isIncomplete && (
           <div className="profile-progress-inline profile-progress-inline-card">
-            <div className="profile-progress-track">
-              <div className="profile-progress-fill" style={{ width: `${completionPct}%` }} />
+            <div className="profile-progress-steps" role="img" aria-label={`${completionPct}% of your profile is complete`}>
+              {completionFlags.map((done, i) => (
+                <span key={i} className={`profile-progress-step${done ? ' is-filled' : ''}`} />
+              ))}
             </div>
-            <span>{completionPct}% profile complete</span>
+            <span className="profile-progress-label">{completionPct}% profile complete</span>
           </div>
         )}
 
@@ -185,11 +200,14 @@ export default function ProfilePage() {
 
       {user.role === 'care_worker' && (
         <div className="panel profile-card" style={{ marginTop: 'var(--space-6)' }}>
-          <div className="detail-section" style={{ padding: 'var(--space-6) var(--space-6) 0' }}>
-            <div className="detail-section-title">Employment information</div>
-            <p style={{ color: 'var(--text-tertiary)', fontSize: 'var(--text-sm)', marginTop: '-4px', marginBottom: 'var(--space-2)' }}>
-              Managed by your manager — ask them to update anything here.
-            </p>
+          <div className="panel-section-header">
+            <div className="panel-section-header-icon">
+              <Briefcase size={16} />
+            </div>
+            <div className="panel-section-header-text">
+              <div className="panel-section-header-title">Employment information</div>
+              <p className="panel-section-header-subtitle">Managed by your manager — ask them to update anything here.</p>
+            </div>
           </div>
           <div className="profile-field-grid">
             <StaticField icon={BadgeCheck} label="Employee ID" value={user.employee_id} />
@@ -206,7 +224,12 @@ export default function ProfilePage() {
               label="Years of service"
               value={user.years_of_service != null ? `${user.years_of_service} yr${user.years_of_service === 1 ? '' : 's'}` : null}
             />
-            <StaticField icon={Users} label="Assigned residents" value="Set up in Stage 5 (Assignments)" fullWidth />
+            <div className="profile-field profile-field-full">
+              <span className="profile-field-label">
+                <Users size={13} /> Assigned residents
+              </span>
+              <AssignmentChips items={user.assigned_residents} kind="resident" emptyLabel="No residents assigned" />
+            </div>
             <div className="profile-field profile-field-full">
               <span className="profile-field-label">
                 <Phone size={13} /> Emergency contact
@@ -229,52 +252,90 @@ export default function ProfilePage() {
 
       {user.role === 'manager' && (
         <div className="panel profile-card" style={{ marginTop: 'var(--space-6)' }}>
-          <div
-            className="detail-section"
-            style={{ padding: 'var(--space-6) var(--space-6) 0', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 'var(--space-4)' }}
-          >
-            <div>
-              <div className="detail-section-title">Employment &amp; management information</div>
-              <p style={{ color: 'var(--text-tertiary)', fontSize: 'var(--text-sm)', marginTop: '-4px', marginBottom: 'var(--space-2)' }}>
-                Your employment details and the care home you manage.
-              </p>
+          <div className="panel-section-header">
+            <div className="panel-section-header-icon">
+              <UserCog size={16} />
+            </div>
+            <div className="panel-section-header-text">
+              <div className="panel-section-header-title">Employment &amp; management information</div>
+              <p className="panel-section-header-subtitle">Your employment details and the care home you manage.</p>
             </div>
             <button type="button" className="icon-btn" aria-label="Edit management details" onClick={() => setShowManagerEditModal(true)}>
               <Pencil size={16} />
             </button>
           </div>
           <div className="profile-field-grid">
-            <StaticField icon={BadgeCheck} label="Employee ID" value={user.employee_id} />
-            <StaticField icon={Cake} label="Date of birth" value={user.date_of_birth ? formatDate(user.date_of_birth) : null} />
-            <StaticField icon={UserRound} label="Gender" value={user.gender} />
-            <StaticField icon={MapPin} label="Home address" value={user.home_address} fullWidth />
-            <StaticField icon={Briefcase} label="Employment type" value={user.employment_type ? employmentTypeLabel(user.employment_type) : null} />
-            <StaticField icon={Building2} label="Department" value={user.department} />
-            <StaticField icon={Shield} label="Employment status" value={user.employment_status ? employmentStatusLabel(user.employment_status) : null} />
-            <StaticField icon={CalendarDays} label="Join date" value={user.join_date ? formatDate(user.join_date) : null} />
+            <StaticField icon={BadgeCheck} label="Manager ID" value={user.employee_id} onAdd={() => setShowManagerEditModal(true)} />
+            <StaticField
+              icon={Cake}
+              label="Date of birth"
+              value={user.date_of_birth ? formatDate(user.date_of_birth) : null}
+              onAdd={() => setShowManagerEditModal(true)}
+            />
+            <StaticField icon={UserRound} label="Gender" value={user.gender} onAdd={() => setShowManagerEditModal(true)} />
+            <StaticField
+              icon={MapPin}
+              label="Home address"
+              value={user.home_address}
+              onAdd={() => setShowManagerEditModal(true)}
+              fullWidth
+            />
+            <StaticField
+              icon={Briefcase}
+              label="Employment type"
+              value={user.employment_type ? employmentTypeLabel(user.employment_type) : null}
+              onAdd={() => setShowManagerEditModal(true)}
+            />
+            <StaticField icon={Building2} label="Department" value={user.department} onAdd={() => setShowManagerEditModal(true)} />
+            <StaticField
+              icon={Shield}
+              label="Employment status"
+              value={user.employment_status ? employmentStatusLabel(user.employment_status) : null}
+              onAdd={() => setShowManagerEditModal(true)}
+            />
+            <StaticField
+              icon={CalendarDays}
+              label="Join date"
+              value={user.join_date ? formatDate(user.join_date) : null}
+              onAdd={() => setShowManagerEditModal(true)}
+            />
             <StaticField
               icon={CalendarDays}
               label="Years of service"
               value={user.years_of_service != null ? `${user.years_of_service} yr${user.years_of_service === 1 ? '' : 's'}` : null}
             />
-            <StaticField icon={Home} label="Care home assigned" value={user.care_home} fullWidth />
-            <StaticField icon={UserCog} label="Care workers managed" value="Set up in Stage 5 (Assignments)" />
-            <StaticField icon={Users} label="Residents overseen" value="Set up in Stage 5 (Assignments)" />
+            <StaticField icon={Home} label="Care home assigned" value={user.care_home} onAdd={() => setShowManagerEditModal(true)} fullWidth />
+            <div className="profile-field">
+              <span className="profile-field-label">
+                <UserCog size={13} /> Care workers managed
+              </span>
+              <AssignmentChips items={user.managed_care_workers} kind="care_worker" emptyLabel="No care workers assigned to you yet" />
+            </div>
+            <div className="profile-field">
+              <span className="profile-field-label">
+                <Users size={13} /> Residents overseen
+              </span>
+              <AssignmentChips items={user.residents_overseen} kind="resident" emptyLabel="No residents overseen yet" />
+            </div>
             <div className="profile-field profile-field-full">
               <span className="profile-field-label">
                 <Phone size={13} /> Emergency contact
               </span>
-              <div className="profile-field-value" style={{ minHeight: 'unset', padding: 'var(--space-3)' }}>
-                {user.emergency_contact_name ? (
-                  <>
-                    {user.emergency_contact_name}
-                    {user.emergency_contact_relationship ? ` \u00b7 ${user.emergency_contact_relationship}` : ''}
-                    {user.emergency_contact_phone ? ` \u00b7 ${user.emergency_contact_phone}` : ''}
-                  </>
-                ) : (
-                  <span style={{ color: 'var(--text-tertiary)' }}>Not recorded</span>
-                )}
-              </div>
+              {user.emergency_contact_name ? (
+                <div className="profile-field-value" style={{ minHeight: 'unset', padding: 'var(--space-3)' }}>
+                  {user.emergency_contact_name}
+                  {user.emergency_contact_relationship ? ` \u00b7 ${user.emergency_contact_relationship}` : ''}
+                  {user.emergency_contact_phone ? ` \u00b7 ${user.emergency_contact_phone}` : ''}
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="profile-field-value profile-field-value-empty"
+                  onClick={() => setShowManagerEditModal(true)}
+                >
+                  <Plus size={12} /> Add an emergency contact
+                </button>
+              )}
             </div>
           </div>
         </div>

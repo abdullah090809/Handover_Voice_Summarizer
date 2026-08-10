@@ -170,7 +170,7 @@ export default function ManagerProfilePage() {
 
                 {tab === 'employment' && (
                     <div className="profile-field-grid">
-                        <ReadField icon={BadgeCheck} label="Employee ID" value={member.employee_id} />
+                        <ReadField icon={BadgeCheck} label="Manager ID" value={member.employee_id} />
                         <ReadField icon={Briefcase} label="Job title" value={member.job_title} />
                         <ReadField icon={Briefcase} label="Employment type" value={member.employment_type ? employmentTypeLabel(member.employment_type) : null} />
                         <ReadField icon={Building2} label="Department" value={member.department} />
@@ -184,6 +184,7 @@ export default function ManagerProfilePage() {
                     <div className="profile-field-grid">
                         <ReadField icon={Home} label="Care home assigned" value={member.care_home} fullWidth />
                         <ReadField icon={UserCog} label="Number of care workers managed" value={String(member.care_workers_managed_count)} />
+                        <ReadField icon={Users} label="Number of residents overseen" value={String(member.residents_overseen_count)} />
                         <div className="profile-field profile-field-full">
                             <span className="profile-field-label">
                                 <Users size={13} /> Care workers managed
@@ -192,6 +193,12 @@ export default function ManagerProfilePage() {
                             <span className="field-hint">
                                 To add or remove someone, open their profile from the Team page and use “Change manager.”
                             </span>
+                        </div>
+                        <div className="profile-field profile-field-full">
+                            <span className="profile-field-label">
+                                <Users size={13} /> Residents overseen
+                            </span>
+                            <AssignmentChips items={member.residents_overseen} kind="resident" emptyLabel="No residents overseen yet" />
                         </div>
                     </div>
                 )}

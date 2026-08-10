@@ -94,6 +94,11 @@ class UserOut(_CareWorkerFields):
     manager: AssignedUserBrief | None = None
     assigned_residents: list[AssignedResidentBrief] = Field(default_factory=list)
     managed_care_workers: list[AssignedUserBrief] = Field(default_factory=list)
+    # Derived rollup for managers -- distinct residents assigned to any of
+    # this manager's care workers (see User.residents_overseen). Empty for
+    # care workers / managers with no reports, same pattern as the fields
+    # above.
+    residents_overseen: list[AssignedResidentBrief] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -113,9 +118,20 @@ class UserOut(_CareWorkerFields):
     @computed_field  # type: ignore[misc]
     @property
     def residents_overseen_count(self) -> int:
-        """Stage 4/5: "Number of Residents Overseen" -- for a care worker,
-        how many residents are currently assigned to them."""
-        return len(self.assigned_residents)
+        """Stage 4/5: "Number of Residents Overseen". For a care worker this
+        is how many residents are currently assigned to them directly
+        (`assigned_residents`); for a manager it's the distinct residents
+        assigned across all of their care workers' caseloads
+        (`residents_overseen`). Only one of the two lists is ever populated
+        for a given role, so summing both is safe and avoids hardcoding a
+        role check here.
+
+        Bug fix: this previously always read `len(self.assigned_residents)`,
+        which is empty for managers, so a manager's "residents overseen"
+        count silently showed 0 on TeamPage even though the
+        `residents_overseen` list itself was populated correctly.
+        """
+        return len(self.assigned_residents) + len(self.residents_overseen)
 
     @computed_field  # type: ignore[misc]
     @property

@@ -127,3 +127,20 @@ class User(Base):
         secondaryjoin="Resident.id==ResidentAssignment.resident_id",
         viewonly=True,
     )
+
+    # --- Manager-side rollup (Stage 7 remaining work) -------------------------
+    # "Residents overseen" for a manager: the distinct set of residents
+    # assigned to any of this manager's care workers. There's no direct
+    # Manager<->Resident row anywhere -- it's derived by walking
+    # managed_care_workers -> each worker's own assigned_residents and
+    # de-duplicating (a resident can be on more than one care worker's
+    # caseload). For a care worker (or a manager with no reports yet),
+    # managed_care_workers is simply empty, so this naturally resolves to
+    # an empty list rather than needing a role check here.
+    @property
+    def residents_overseen(self):
+        seen = {}
+        for worker in self.managed_care_workers:
+            for resident in worker.assigned_residents:
+                seen[resident.id] = resident
+        return list(seen.values())

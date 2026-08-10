@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.cores.database import get_db
 from app.cores.security import get_current_user
-from app.models.shift import Shift
+from app.models.shift import Shift, compute_shift_numbers
 from app.models.user import User
 from app.schemas.shift import ShiftCreate, ShiftOut
 
@@ -21,6 +21,8 @@ def create_shift(
     db.add(new_shift)
     db.commit()
     db.refresh(new_shift)
+    # pyrefly: ignore [bad-argument-type]
+    new_shift.shift_number = compute_shift_numbers(db, {current_user.id}).get(new_shift.id)
     return new_shift
 
 
@@ -50,13 +52,19 @@ def list_my_shifts(
     else:
         query_id = current_user.id
 
-    return (
+    results = (
         db.query(Shift)
         .filter(Shift.worker_id == query_id)
         .offset(skip)
         .limit(limit)
         .all()
     )
+    # pyrefly: ignore [bad-argument-type]
+    numbers = compute_shift_numbers(db, {query_id})
+    for shift in results:
+        # pyrefly: ignore [bad-argument-type]
+        shift.shift_number = numbers.get(shift.id)
+    return results
 
 
 @router.get("/{id}", response_model=ShiftOut)
@@ -79,6 +87,8 @@ def get_shift(
             detail="Not authorized to view this shift",
         )
 
+    # pyrefly: ignore [bad-argument-type]
+    shift.shift_number = compute_shift_numbers(db, {shift.worker_id}).get(shift.id)
     return shift
 
 
@@ -109,6 +119,8 @@ def update_shift(
 
     db.commit()
     db.refresh(shift)
+    # pyrefly: ignore [bad-argument-type]
+    shift.shift_number = compute_shift_numbers(db, {shift.worker_id}).get(shift.id)
 
     return shift
 

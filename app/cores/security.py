@@ -113,6 +113,14 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     if user.role == "deactivated":
         raise HTTPException(status_code=401, detail="Account deactivated")
 
+    # Employment status is HR-facing (see app/models/user.py) but a person
+    # who has left the care home must not keep working sessions -- even if
+    # their `role` was never explicitly deactivated. Re-checked on every
+    # request (not just at login) so an already-issued token stops working
+    # the moment their status changes, not just on next login.
+    if user.employment_status == "left":
+        raise HTTPException(status_code=401, detail="Account access has been revoked")
+
     return user
 
 

@@ -1,4 +1,3 @@
-
 import json
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -66,6 +65,7 @@ async def _notify_assignment_change(
 
 
 def _display_name(u: User) -> str:
+    # pyrefly: ignore [bad-return]
     return u.name or u.username
 
 
@@ -101,6 +101,24 @@ def _get_care_worker_or_404(db: Session, care_worker_id: int) -> User:
             ),
         )
     return worker
+
+
+def _ensure_assignable_care_worker(worker: User) -> None:
+    """Gate for endpoints that ADD/REPLACE a care worker's resident
+    assignments (resident<->care-worker in either direction). A care
+    worker who has left the care home must not be newly assigned any
+    resident -- checked here, separately from _get_care_worker_or_404, so
+    read-only lookups (e.g. viewing a left worker's past caseload) are
+    unaffected and only mutating requests are rejected. Applies equally to
+    a manually-sent API request, not just the UI."""
+    if worker.employment_status == "left":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"{_display_name(worker)} has left and can no longer be "
+                "assigned residents"
+            ),
+        )
 
 
 def _get_manager_or_404(db: Session, manager_id: int) -> User:
@@ -148,6 +166,7 @@ async def assign_care_worker_to_resident(
     assignments for this resident are untouched)."""
     resident = _get_resident_or_404(db, resident_id)
     worker = _get_care_worker_or_404(db, care_worker_id)
+    _ensure_assignable_care_worker(worker)
 
     existing = (
         db.query(ResidentAssignment)
@@ -175,6 +194,7 @@ async def assign_care_worker_to_resident(
     await _notify_assignment_change(
         db,
         f"{_display_name(worker)} was assigned to {resident.name}.",
+        # pyrefly: ignore [bad-argument-type]
         resident_id=resident.id,
     )
     return resident
@@ -216,6 +236,7 @@ async def remove_care_worker_from_resident(
     await _notify_assignment_change(
         db,
         f"{worker_label} was unassigned from {resident.name}.",
+        # pyrefly: ignore [bad-argument-type]
         resident_id=resident.id,
     )
     return resident
@@ -236,19 +257,25 @@ async def set_resident_care_workers(
     the resident's assignments."""
     resident = _get_resident_or_404(db, resident_id)
 
-    # Validate every target id up front (dedup with a set) so a bad id
-    # anywhere in the payload fails the whole request instead of leaving a
-    # half-applied assignment set.
-    new_worker_ids = set(payload.care_worker_ids)
-    for worker_id in new_worker_ids:
-        _get_care_worker_or_404(db, worker_id)
-
     existing_links = (
         db.query(ResidentAssignment)
         .filter(ResidentAssignment.resident_id == resident.id)
         .all()
     )
     existing_worker_ids = {link.care_worker_id for link in existing_links}
+
+    # Validate every target id up front (dedup with a set) so a bad id
+    # anywhere in the payload fails the whole request instead of leaving a
+    # half-applied assignment set. Someone who has left is only rejected
+    # for a *new* assignment -- if they were already on this resident's
+    # list before leaving and the payload still includes them unchanged,
+    # that's not a new assignment being made, so it's left alone here (the
+    # manager can still explicitly untick them to remove it).
+    new_worker_ids = set(payload.care_worker_ids)
+    for worker_id in new_worker_ids:
+        worker = _get_care_worker_or_404(db, worker_id)
+        if worker_id not in existing_worker_ids:
+            _ensure_assignable_care_worker(worker)
 
     added_ids = new_worker_ids - existing_worker_ids
     removed_ids = existing_worker_ids - new_worker_ids
@@ -288,6 +315,7 @@ async def set_resident_care_workers(
         if removed_names:
             parts.append(f"unassigned {', '.join(removed_names)}")
         message = f"{resident.name}'s care workers updated: " + "; ".join(parts) + "."
+        # pyrefly: ignore [bad-argument-type]
         await _notify_assignment_change(db, message, resident_id=resident.id)
 
     return resident
@@ -323,16 +351,24 @@ async def set_care_worker_residents(
     the "assign several residents to one worker" workflow."""
     worker = _get_care_worker_or_404(db, care_worker_id)
 
-    new_resident_ids = set(payload.resident_ids)
-    for resident_id in new_resident_ids:
-        _get_resident_or_404(db, resident_id)
-
     existing_links = (
         db.query(ResidentAssignment)
         .filter(ResidentAssignment.care_worker_id == worker.id)
         .all()
     )
     existing_resident_ids = {link.resident_id for link in existing_links}
+
+    new_resident_ids = set(payload.resident_ids)
+    for resident_id in new_resident_ids:
+        _get_resident_or_404(db, resident_id)
+
+    # This worker is the one being assigned a caseload -- reject the whole
+    # request if it would give them any resident they didn't already have
+    # (i.e. this is the exact "Manage caseload" flow the issue describes).
+    # Shrinking/clearing an existing caseload for someone who has since
+    # left is still allowed.
+    if new_resident_ids - existing_resident_ids:
+        _ensure_assignable_care_worker(worker)
 
     added_ids = new_resident_ids - existing_resident_ids
     removed_ids = existing_resident_ids - new_resident_ids

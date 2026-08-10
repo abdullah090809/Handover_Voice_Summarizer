@@ -81,7 +81,11 @@ async def websocket_endpoint(websocket: WebSocket):
             await websocket.close(code=4001, reason="Invalid token")
             return
         user = db.query(User).filter(User.id == int(user_id)).first()
-        if user is None or user.role == "deactivated":
+        if (
+            user is None
+            or user.role == "deactivated"
+            or user.employment_status == "left"
+        ):
             await websocket.close(code=4001, reason="Unauthorized")
             return
         user_role = user.role

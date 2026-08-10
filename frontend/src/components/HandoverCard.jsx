@@ -21,7 +21,7 @@ export default function HandoverCard({ note, residentName, canDelete, onOpen, on
         <div className="entity-card-heading">
           <div>
             <div className="entity-card-title">{residentName || `Resident #${note.resident_id}`}</div>
-            <div className="entity-card-subtitle">Note #{note.id} &middot; Shift #{note.shift_id}</div>
+            <div className="entity-card-subtitle">Note #{note.id} &middot; Shift #{note.shift_number ?? note.shift_id}</div>
           </div>
         </div>
         {isPending ? <HandoverStatusBadge status={note.status} /> : isFailed ? <HandoverStatusBadge status="failed" /> : <UrgencyBadge urgency={urgency} />}

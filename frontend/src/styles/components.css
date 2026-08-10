@@ -285,6 +285,121 @@
 }
 
 /* ==========================================================================
+   ASSIGNMENT OPTION ROWS (AssignmentModal — "Manage caseload" /
+   "Manage care workers" pickers). Each option reads as a distinct row card
+   with an identity (avatar/initials), a title + meta, and a clear
+   selected state, instead of a bare checkbox + inline text.
+   ========================================================================== */
+.assignment-option-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 340px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.assignment-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard);
+}
+
+.assignment-option:hover {
+  background: var(--surface-hover);
+}
+
+.assignment-option.is-selected {
+  background: var(--teal-50);
+  border-color: var(--teal-100);
+}
+
+.assignment-option:has(input:focus-visible) {
+  outline: 2px solid var(--teal-500);
+  outline-offset: 1px;
+}
+
+.assignment-option input[type="checkbox"],
+.assignment-option input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+
+.assignment-option-avatar-none {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-hover-strong);
+  color: var(--text-tertiary);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.assignment-option-body {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.assignment-option-title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assignment-option-meta {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assignment-option-check {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: transparent;
+  background: var(--surface-sunken);
+  transition: background var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard);
+}
+
+.assignment-option.is-selected .assignment-option-check {
+  background: var(--teal-600);
+  border-color: var(--teal-600);
+  color: var(--white);
+}
+
+.assignment-option-empty {
+  padding: var(--space-4) var(--space-3);
+  text-align: center;
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+}
+
+/* ==========================================================================
    COMBOBOX (searchable select — e.g. Resident picker)
    ========================================================================== */
 .combobox {
@@ -1183,4 +1298,60 @@ table.data-table {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
+}
+
+/* ==========================================================================
+   ASSIGNMENT CHIPS (Stage 7)
+   Read-only "who's assigned" lists on profile pages (a manager's care
+   workers, a resident's assigned care workers, etc.) -- see
+   components/AssignmentChips.jsx. Unlike the assignment *picker* modal
+   (.assignment-option-list, above), these can't rely on a fixed modal
+   height, so once a list gets long it gets its own small filter box and a
+   capped, independently-scrolling area instead of pushing the rest of the
+   profile page down indefinitely.
+   ========================================================================== */
+.assignment-chips {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.assignment-chips-count {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+
+.assignment-chips-search {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-inset, transparent);
+  color: var(--text-tertiary);
+}
+
+.assignment-chips-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  outline: none;
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+
+.tag-strip-scroll {
+  max-height: 220px;
+  overflow-y: auto;
+  padding-right: var(--space-1);
+  /* keeps the last row of chips from being clipped flush against the
+     scroll edge */
+  padding-bottom: 2px;
+}
+
+.assignment-chips-no-match {
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
 }

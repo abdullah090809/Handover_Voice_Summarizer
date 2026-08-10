@@ -10,7 +10,7 @@ from app.cores.limiter import limiter
 from app.cores.security import get_current_user
 from app.models.handover_note import HandoverNote
 from app.models.resident import Resident
-from app.models.shift import Shift
+from app.models.shift import Shift, compute_shift_numbers
 from app.models.user import User
 from app.schemas.handover_note import FollowUpResolution, HandoverNoteAccepted, HandoverNoteOut, HandoverNotePagination
 from app.tasks import process_handover_note
@@ -93,23 +93,30 @@ def _invalidate_handover_cache():
 
 
 def _attach_submitters(db: Session, notes: list[HandoverNote]) -> None:
-    """Attaches a transient `submitted_by` attribute (the care worker who
-    recorded the handover, via shift.worker_id) to each note in-place, so
-    HandoverNoteOut can pick it up. One query total, no N+1: batches the
-    shift ids from the given notes into a single join.
+    """Attaches transient `submitted_by` (the care worker who recorded the
+    handover, via shift.worker_id) and `shift_number` (that worker's
+    stable, gap-free personal shift ordinal — see
+    app.models.shift.compute_shift_numbers) attributes to each note
+    in-place, so HandoverNoteOut can pick them up. Two queries total, no
+    N+1: batches the shift ids from the given notes into one join, then
+    one more query to number every referenced worker's shifts.
     """
     shift_ids = {n.shift_id for n in notes}
     if not shift_ids:
         return
     rows = (
-        db.query(Shift.id, User)
+        db.query(Shift.id, Shift.worker_id, User)
         .join(User, Shift.worker_id == User.id)
         .filter(Shift.id.in_(shift_ids))
         .all()
     )
-    worker_by_shift = {shift_id: worker for shift_id, worker in rows}
+    worker_by_shift = {shift_id: worker for shift_id, _worker_id, worker in rows}
+    worker_ids = {worker_id for _shift_id, worker_id, _worker in rows}
+    shift_numbers = compute_shift_numbers(db, worker_ids)
     for note in notes:
         note.submitted_by = worker_by_shift.get(note.shift_id)
+        # pyrefly: ignore [bad-argument-type]
+        note.shift_number = shift_numbers.get(note.shift_id)
 
 
 @router.post(

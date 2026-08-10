@@ -105,7 +105,7 @@ export default function ManagerFormModal({ user, onClose, onSaved }) {
                 <div className="detail-section">
                     <div className="detail-section-title">Basic information</div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 'var(--space-4)' }}>
-                        <Field label="Employee ID" htmlFor="mgr-employee-id" optional hint="Auto-generated if left blank">
+                        <Field label="Manager ID" htmlFor="mgr-employee-id" optional hint="Auto-generated if left blank">
                             <IconInput icon={BadgeCheck} id="mgr-employee-id" value={form.employee_id} onChange={set('employee_id')} autoFocus />
                         </Field>
                         <Field label="Date of birth" htmlFor="mgr-dob" optional>

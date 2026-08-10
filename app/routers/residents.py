@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.cores.database import get_db
 from app.cores.security import get_current_user, require_manager
+from app.models.assignment import ResidentAssignment
 from app.models.notification import Notification
 from app.models.resident import Resident
 from app.models.user import User
@@ -62,6 +63,16 @@ def list_residents(
     # assigned_residents in turn).
     query = db.query(Resident).options(selectinload(Resident.assigned_care_workers))
 
+    # Stage 7: a care worker may only see residents assigned to *them* --
+    # enforced here in the query itself (not just hidden in the UI), so a
+    # care worker calling this endpoint directly still only ever gets
+    # their own caseload back, regardless of query params. Managers keep
+    # the full directory -- that's the point of the manager role.
+    if current_user.role == "care_worker":
+        query = query.join(
+            ResidentAssignment, ResidentAssignment.resident_id == Resident.id
+        ).filter(ResidentAssignment.care_worker_id == current_user.id)
+
     if current_user.role != "manager":
         query = query.filter(Resident.status == "active")
     elif not include_inactive:
@@ -88,6 +99,26 @@ def get_resident(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Resident with id {id} not found",
         )
+
+    # Same backend-enforced scoping as the list endpoint above: a care
+    # worker can only fetch a resident who is actually on their caseload.
+    # 404 (not 403) so an unauthorized request doesn't even confirm the id
+    # exists.
+    if current_user.role == "care_worker":
+        is_assigned = (
+            db.query(ResidentAssignment)
+            .filter(
+                ResidentAssignment.resident_id == resident.id,
+                ResidentAssignment.care_worker_id == current_user.id,
+            )
+            .first()
+            is not None
+        )
+        if not is_assigned:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Resident with id {id} not found",
+            )
 
     return resident
 

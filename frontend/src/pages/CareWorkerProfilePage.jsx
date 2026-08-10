@@ -75,7 +75,14 @@ export default function CareWorkerProfilePage() {
         load();
     }, [load]);
 
+    const hasLeft = member?.employment_status === 'left';
+
     async function openAssignResidents() {
+        // Defense in depth: the button below is hidden once a worker has
+        // left, but guard the handler too in case this is ever reached
+        // another way. The backend is the real enforcement point (see
+        // _ensure_assignable_care_worker in app/routers/assignments.py).
+        if (hasLeft) return;
         setAssigningResidents(true);
         if (residentOptions === null) {
             try {
@@ -245,14 +252,26 @@ export default function CareWorkerProfilePage() {
                             </span>
                             <AssignmentChips items={member.assigned_residents} kind="resident" emptyLabel="No residents assigned" />
                             {isManager && (
-                                <button
-                                    type="button"
-                                    className="btn btn-secondary btn-sm"
-                                    style={{ alignSelf: 'flex-start', marginTop: 'var(--space-1)' }}
-                                    onClick={openAssignResidents}
-                                >
-                                    <UserPlus size={14} /> Manage caseload
-                                </button>
+                                hasLeft ? (
+                                    <p
+                                        style={{
+                                            color: 'var(--text-tertiary)',
+                                            fontSize: 'var(--text-sm)',
+                                            marginTop: 'var(--space-1)',
+                                        }}
+                                    >
+                                        {displayName(member)} has left and can no longer be assigned residents.
+                                    </p>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        className="btn btn-secondary btn-sm"
+                                        style={{ alignSelf: 'flex-start', marginTop: 'var(--space-1)' }}
+                                        onClick={openAssignResidents}
+                                    >
+                                        <UserPlus size={14} /> Manage caseload
+                                    </button>
+                                )
                             )}
                         </div>
                         <div className="profile-field profile-field-full">
@@ -296,13 +315,13 @@ export default function CareWorkerProfilePage() {
                         residentOptions === null
                             ? null
                             : residentOptions.map((r) => ({
-                                  id: r.id,
-                                  label: r.preferred_name || r.name,
-                                  sublabel:
-                                      r.status !== 'active'
-                                          ? [r.resident_code, residentStatusLabel(r.status)].filter(Boolean).join(' · ')
-                                          : r.resident_code,
-                              }))
+                                id: r.id,
+                                label: r.preferred_name || r.name,
+                                sublabel:
+                                    r.status !== 'active'
+                                        ? [r.resident_code, residentStatusLabel(r.status)].filter(Boolean).join(' · ')
+                                        : r.resident_code,
+                            }))
                     }
                     initialSelectedIds={member.assigned_residents.map((r) => r.id)}
                     onClose={() => setAssigningResidents(false)}
@@ -321,13 +340,13 @@ export default function CareWorkerProfilePage() {
                         managerOptions === null
                             ? null
                             : managerOptions.map((u) => ({
-                                  id: u.id,
-                                  label: displayName(u),
-                                  sublabel:
-                                      u.employment_status && u.employment_status !== 'active'
-                                          ? [u.job_title, employmentStatusLabel(u.employment_status)].filter(Boolean).join(' · ')
-                                          : u.job_title,
-                              }))
+                                id: u.id,
+                                label: displayName(u),
+                                sublabel:
+                                    u.employment_status && u.employment_status !== 'active'
+                                        ? [u.job_title, employmentStatusLabel(u.employment_status)].filter(Boolean).join(' · ')
+                                        : u.job_title,
+                            }))
                     }
                     initialSelectedIds={member.manager ? [member.manager.id] : []}
                     onClose={() => setAssigningManager(false)}

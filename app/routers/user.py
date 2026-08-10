@@ -25,9 +25,23 @@ MAX_PROFILE_PICTURE_SIZE = 5 * 1024 * 1024  # 5MB
 
 @router.get("/me", response_model=UserOut)
 def get_current_user_info(
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return current_user
+    # Re-query with the same eager-loading as list_users/get_user_detail so
+    # the profile page (assigned residents / managed care workers /
+    # residents overseen) doesn't fire a cascade of lazy queries. Cheap
+    # here since it's always exactly one row.
+    return (
+        db.query(User)
+        .options(
+            selectinload(User.manager),
+            selectinload(User.assigned_residents),
+            selectinload(User.managed_care_workers).selectinload(User.assigned_residents),
+        )
+        .filter(User.id == current_user.id)
+        .first()
+    )
 
 
 @router.patch("/me", response_model=UserOut)
@@ -169,7 +183,11 @@ def list_users(
         .options(
             selectinload(User.manager),
             selectinload(User.assigned_residents),
-            selectinload(User.managed_care_workers),
+            # residents_overseen (a manager property) walks
+            # managed_care_workers -> each worker's own assigned_residents,
+            # so eager-load that second hop too, or it falls back to one
+            # lazy query per managed care worker per row.
+            selectinload(User.managed_care_workers).selectinload(User.assigned_residents),
         )
         .offset(skip)
         .limit(limit)
@@ -188,7 +206,7 @@ def get_user_detail(
         .options(
             selectinload(User.manager),
             selectinload(User.assigned_residents),
-            selectinload(User.managed_care_workers),
+            selectinload(User.managed_care_workers).selectinload(User.assigned_residents),
         )
         .filter(User.id == id)
         .first()
@@ -250,8 +268,12 @@ def create_user(
 
     # Auto-generate a human-facing employee ID once we know the row's id,
     # unless the manager already supplied their own scheme on create.
+    # Prefix distinguishes the two roles that share this one `users` table
+    # (see global search's identifier scheme: EMP- for care workers,
+    # MGR- for managers) -- both still number off the same row id.
     if not new_user.employee_id:
-        new_user.employee_id = f"EMP-{new_user.id:04d}"
+        prefix = "MGR" if new_user.role == "manager" else "EMP"
+        new_user.employee_id = f"{prefix}-{new_user.id:04d}"
         db.commit()
         db.refresh(new_user)
 
@@ -307,11 +329,26 @@ def update_user(
                 detail="Employee ID already in use",
             )
 
+    previous_employment_status = user.employment_status
+
     for field, value in data.items():
         setattr(user, field, value)
 
     db.commit()
     db.refresh(user)
+
+    # Mirror the deactivate/activate blocklist behaviour (see below) for the
+    # "left" employment status: get_current_user() already re-checks this
+    # column on every request, but blocklisting here revokes any in-flight
+    # token immediately instead of waiting for its next DB round-trip, and
+    # keeps both revocation paths consistent.
+    if user.employment_status == "left" and previous_employment_status != "left":
+        # pyrefly: ignore [bad-argument-type]
+        blocklist_token(user.id)
+    elif previous_employment_status == "left" and user.employment_status != "left":
+        # pyrefly: ignore [bad-argument-type]
+        clear_token_blocklist(user.id)
+
     return user
 
 

@@ -216,6 +216,18 @@ def verify_email(request: Request, payload: VerifyOTP, db: Session = Depends(get
     db.commit()
     db.refresh(new_user)
 
+    # Self-registration (this endpoint) is the *other* place a user row can
+    # be created besides routers/user.py's create_user() -- e.g. the very
+    # first manager, who signs up directly rather than being added by an
+    # existing manager. Without this, that account is stuck with a
+    # permanently blank employee_id/manager_id. Same MGR-/EMP- scheme as
+    # create_user(), numbered off this row's own id.
+    if not new_user.employee_id:
+        prefix = "MGR" if new_user.role == "manager" else "EMP"
+        new_user.employee_id = f"{prefix}-{new_user.id:04d}"
+        db.commit()
+        db.refresh(new_user)
+
     return new_user
 
 
@@ -314,6 +326,14 @@ def login(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="This account has been deactivated. Contact your manager.",
+        )
+    # Someone who has left the care home must not be able to start a new
+    # session either, even though `role` itself was untouched. See the
+    # matching check in get_current_user() for already-issued tokens.
+    if user.employment_status == "left":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This account is no longer active. Contact your manager.",
         )
     access_token = create_access_token(data={"user_id": str(user.id)})
 

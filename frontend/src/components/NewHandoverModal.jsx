@@ -26,7 +26,7 @@ function formatShiftLabel(s) {
     hour: 'numeric',
     minute: '2-digit',
   });
-  return `Shift #${s.id} · ${dateStr}${!s.end_time ? ' (ongoing)' : ''}`;
+  return `Shift #${s.shift_number ?? s.id} · ${dateStr}${!s.end_time ? ' (ongoing)' : ''}`;
 }
 
 export default function NewHandoverModal({ residents, shifts, onClose, onSubmitted }) {

@@ -29,6 +29,11 @@ class HandoverNoteOut(BaseModel):
     # optional and defaults to None if a caller builds this schema without
     # attaching it.
     submitted_by: HandoverSubmitter | None = None
+    # That worker's stable, gap-free personal shift ordinal — see
+    # app.models.shift.compute_shift_numbers. Also attached by the router,
+    # not a real column; `shift_id` itself is untouched and still the real
+    # foreign key.
+    shift_number: int | None = None
 
     class Config:
         from_attributes = True

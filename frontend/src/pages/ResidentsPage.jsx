@@ -1,31 +1,25 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Plus, Users } from 'lucide-react';
 import { residentApi, ApiError } from '../lib/api.js';
 import { useAuth } from '../lib/AuthContext.jsx';
 import { useToast } from '../lib/ToastContext.jsx';
-import { useConfirm } from '../lib/ConfirmContext.jsx';
 import { Avatar } from '../components/States.jsx';
 import { ResidentStatusBadge } from '../components/Badge.jsx';
 import { SkeletonGrid, EmptyState, ErrorState } from '../components/States.jsx';
-import ResidentDetailModal from '../components/ResidentDetailModal.jsx';
 import ResidentFormModal from '../components/ResidentFormModal.jsx';
-import HandoverDetailModal from '../components/HandoverDetailModal.jsx';
 import Pagination from '../components/Pagination.jsx';
 import { usePagination } from '../lib/usePagination.js';
 
 export default function ResidentsPage() {
   const { isManager } = useAuth();
   const showToast = useToast();
-  const confirm = useConfirm();
-  const location = useLocation();
+  const navigate = useNavigate();
 
   const [residents, setResidents] = useState(null);
   const [error, setError] = useState(null);
   const [statusFilter, setStatusFilter] = useState('active');
-  const [openResident, setOpenResident] = useState(null);
   const [formResident, setFormResident] = useState(undefined); // undefined = closed, null = create, obj = edit
-  const [openNote, setOpenNote] = useState(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -40,42 +34,6 @@ export default function ResidentsPage() {
   useEffect(() => {
     load();
   }, [load]);
-
-  useEffect(() => {
-    if (location.state?.openResidentId && residents) {
-      const r = residents.find((x) => x.id === location.state.openResidentId);
-      if (r) setOpenResident(r);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [residents]);
-
-  async function handleChangeStatus(resident, status) {
-    try {
-      await residentApi.updateStatus(resident.id, status);
-      showToast(`${resident.name} marked as ${status}.`, 'success');
-      setOpenResident(null);
-      load();
-    } catch (err) {
-      showToast(err instanceof ApiError ? err.message : 'Could not update status.', 'error');
-    }
-  }
-
-  async function handleDelete(resident) {
-    const ok = await confirm({
-      title: `Remove ${resident.name}?`,
-      message: 'This permanently deletes the resident record. Their existing handover notes are kept for the record.',
-      confirmLabel: 'Remove resident',
-    });
-    if (!ok) return;
-    try {
-      await residentApi.remove(resident.id);
-      showToast('Resident removed.', 'success');
-      setOpenResident(null);
-      load();
-    } catch (err) {
-      showToast(err instanceof ApiError ? err.message : 'Could not remove this resident.', 'error');
-    }
-  }
 
   const filtered = residents ? residents.filter((r) => (statusFilter ? r.status === statusFilter : true)) : [];
   const { pageItems, page, pageCount, total, setPage, resetToFirstPage } = usePagination(filtered, { pageSize: 9 });
@@ -121,7 +79,7 @@ export default function ResidentsPage() {
         <>
           <div className="card-grid">
             {pageItems.map((r) => (
-              <div key={r.id} className="card card-clickable entity-card" role="button" tabIndex={0} onClick={() => setOpenResident(r)}>
+              <div key={r.id} className="card card-clickable entity-card" role="button" tabIndex={0} onClick={() => navigate(`/residents/${r.id}`)}>
                 <div className="entity-card-top">
                   <div className="entity-card-heading">
                     <Avatar text={r.name} size="lg" />
@@ -133,27 +91,18 @@ export default function ResidentsPage() {
                 </div>
                 <div className="entity-card-body">
                   <ResidentStatusBadge status={r.status} />
+                  <span className="badge badge-info">
+                    <Users size={12} style={{ marginRight: 4 }} />
+                    {r.assigned_care_workers?.length
+                      ? `${r.assigned_care_workers.length} care worker${r.assigned_care_workers.length === 1 ? '' : 's'}`
+                      : 'Unassigned'}
+                  </span>
                 </div>
               </div>
             ))}
           </div>
           <Pagination page={page} pageCount={pageCount} total={total} pageSize={9} onPageChange={setPage} itemLabel="residents" />
         </>
-      )}
-
-      {openResident && (
-        <ResidentDetailModal
-          resident={openResident}
-          isManager={isManager}
-          onClose={() => setOpenResident(null)}
-          onChangeStatus={handleChangeStatus}
-          onEdit={(r) => {
-            setOpenResident(null);
-            setFormResident(r);
-          }}
-          onDelete={handleDelete}
-          onOpenNote={setOpenNote}
-        />
       )}
 
       {formResident !== undefined && (
@@ -167,8 +116,6 @@ export default function ResidentsPage() {
           }}
         />
       )}
-
-      {openNote && <HandoverDetailModal note={openNote} residentName={openResident?.name} canDelete={false} onClose={() => setOpenNote(null)} />}
     </>
   );
 }

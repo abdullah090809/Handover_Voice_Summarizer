@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import { Plus, UserCog, MoreVertical, Ban, CheckCircle2, KeyRound, Pencil, Trash2 } from 'lucide-react';
 import { userApi, ApiError } from '../lib/api.js';
 import { useAuth } from '../lib/AuthContext.jsx';
@@ -17,6 +18,7 @@ export default function TeamPage() {
   const { user: me } = useAuth();
   const showToast = useToast();
   const confirm = useConfirm();
+  const navigate = useNavigate();
 
   const [users, setUsers] = useState(null);
   const [error, setError] = useState(null);
@@ -108,13 +110,14 @@ export default function TeamPage() {
                 <tr>
                   <th>Team member</th>
                   <th>Role</th>
+                  <th>Assigned</th>
                   <th>Joined</th>
                   <th aria-label="Actions" />
                 </tr>
               </thead>
               <tbody>
                 {pageItems.map((u) => (
-                  <tr key={u.id}>
+                  <tr key={u.id} className="row-clickable" onClick={() => navigate(u.role === 'manager' ? `/managers/${u.id}` : `/team/${u.id}`)}>
                     <td data-label="Team member">
                       <div className="team-member-row">
                         <Avatar text={displayName(u)} size="sm" />
@@ -128,6 +131,13 @@ export default function TeamPage() {
                     <td data-label="Role">
                       <RoleBadge role={u.role} />
                     </td>
+                    <td data-label="Assigned" style={{ color: 'var(--text-tertiary)', fontSize: 'var(--text-xs)' }}>
+                      {u.role === 'manager'
+                        ? `${u.care_workers_managed_count} care worker${u.care_workers_managed_count === 1 ? '' : 's'}`
+                        : u.role === 'care_worker'
+                        ? `${u.residents_overseen_count} resident${u.residents_overseen_count === 1 ? '' : 's'}`
+                        : '—'}
+                    </td>
                     <td data-label="Joined" style={{ color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)' }}>{formatDate(u.created_at)}</td>
                     <td data-label="" style={{ textAlign: 'right' }}>
                       <button
@@ -135,6 +145,7 @@ export default function TeamPage() {
                         aria-label="Actions"
                         data-menu-trigger
                         onClick={(e) => {
+                          e.stopPropagation();
                           if (openMenu?.userId === u.id) {
                             setOpenMenu(null);
                           } else {
@@ -235,7 +246,7 @@ function ActionMenu({ items, anchorRect, onClose }) {
   };
 
   return createPortal(
-    <div ref={menuRef} style={style} role="menu">
+    <div ref={menuRef} style={style} role="menu" onClick={(e) => e.stopPropagation()}>
       {items.map((item, i) => (
         <button
           key={i}

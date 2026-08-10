@@ -137,6 +137,7 @@ export const userApi = {
   },
   removeProfilePicture: () => parse(request('/users/me/profile-picture', { method: 'DELETE' })),
   list: () => parse(request('/users/')),
+  get: (id) => parse(request(`/users/${id}`)),
   create: (payload) => parse(request('/users/', { method: 'POST', body: payload })),
   update: (id, payload) => parse(request(`/users/${id}`, { method: 'PUT', body: payload })),
   remove: (id) => parse(request(`/users/${id}`, { method: 'DELETE' })),
@@ -151,10 +152,37 @@ export const userApi = {
 export const residentApi = {
   list: (includeInactive = false) => parse(request(`/residents/?include_inactive=${includeInactive}`)),
   get: (id) => parse(request(`/residents/${id}`)),
-  create: (name) => parse(request('/residents/', { method: 'POST', body: { name } })),
-  update: (id, name) => parse(request(`/residents/${id}`, { method: 'PUT', body: { name } })),
+  // `payload` is the full resident field set (see ResidentCreate/ResidentUpdate
+  // schemas) -- only `name` is actually required, everything else can be
+  // filled in later from the profile page.
+  create: (payload) => parse(request('/residents/', { method: 'POST', body: payload })),
+  update: (id, payload) => parse(request(`/residents/${id}`, { method: 'PUT', body: payload })),
   updateStatus: (id, status) => parse(request(`/residents/${id}/status`, { method: 'PATCH', body: { status } })),
   remove: (id) => parse(request(`/residents/${id}`, { method: 'DELETE' })),
+};
+
+// ---------------------------------------------------------------------------
+// Assignments (Stage 5) -- Resident <-> Care Worker (many-to-many) and
+// Care Worker -> Manager (many-to-one). Mutating calls require the manager
+// role on the backend; read calls are open to the record's own owner too.
+// ---------------------------------------------------------------------------
+export const assignmentApi = {
+  addCareWorkerToResident: (residentId, careWorkerId) =>
+    parse(request(`/assignments/residents/${residentId}/care-workers/${careWorkerId}`, { method: 'POST' })),
+  removeCareWorkerFromResident: (residentId, careWorkerId) =>
+    parse(request(`/assignments/residents/${residentId}/care-workers/${careWorkerId}`, { method: 'DELETE' })),
+  /** Replaces a resident's entire assigned care-worker set in one call. */
+  setResidentCareWorkers: (residentId, careWorkerIds) =>
+    parse(request(`/assignments/residents/${residentId}/care-workers`, { method: 'PUT', body: { care_worker_ids: careWorkerIds } })),
+  listResidentCareWorkers: (residentId) => parse(request(`/assignments/residents/${residentId}/care-workers`)),
+  /** Replaces a care worker's entire caseload in one call. */
+  setCareWorkerResidents: (careWorkerId, residentIds) =>
+    parse(request(`/assignments/care-workers/${careWorkerId}/residents`, { method: 'PUT', body: { resident_ids: residentIds } })),
+  listCareWorkerResidents: (careWorkerId) => parse(request(`/assignments/care-workers/${careWorkerId}/residents`)),
+  /** Pass managerId = null to remove the care worker's manager. */
+  setCareWorkerManager: (careWorkerId, managerId) =>
+    parse(request(`/assignments/care-workers/${careWorkerId}/manager`, { method: 'PATCH', body: { manager_id: managerId } })),
+  listManagerCareWorkers: (managerId) => parse(request(`/assignments/managers/${managerId}/care-workers`)),
 };
 
 // ---------------------------------------------------------------------------

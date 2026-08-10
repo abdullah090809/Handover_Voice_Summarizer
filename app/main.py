@@ -17,7 +17,7 @@ from app.cores.database import engine
 from app.cores.limiter import limiter
 from app.cores.redis_client import redis_client
 from app.cores.seed import seed_manager_account
-from app.routers import auth, handover, residents, shifts, user, websocket, notifications, audit
+from app.routers import auth, handover, residents, shifts, user, websocket, notifications, audit, assignments
 from app.models import audit_log  # noqa: F401 — ensures AuditLog is registered with Base
 from app.middleware.audit import AuditLogMiddleware
 
@@ -111,6 +111,7 @@ app.include_router(user.router)
 app.include_router(websocket.router)
 app.include_router(notifications.router)
 app.include_router(audit.router)
+app.include_router(assignments.router)
 
 
 @app.get("/")

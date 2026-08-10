@@ -3,7 +3,7 @@ import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.cores.database import get_db
 from app.cores.security import get_current_user, require_manager
@@ -15,6 +15,7 @@ from app.schemas.resident import (
     ResidentCreate,
     ResidentOut,
     ResidentStatusUpdate,
+    ResidentUpdate,
 )
 
 logger = logging.getLogger(__name__)
@@ -32,6 +33,14 @@ def create_resident(
     db.add(new_resident)
     db.commit()
     db.refresh(new_resident)
+
+    # Auto-generate a human-facing resident code once we know the row's id,
+    # unless the manager already supplied their own scheme on create.
+    if not new_resident.resident_code:
+        new_resident.resident_code = f"R-{new_resident.id:04d}"
+        db.commit()
+        db.refresh(new_resident)
+
     return new_resident
 
 
@@ -43,7 +52,15 @@ def list_residents(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    query = db.query(Resident)
+    # Stage 6: ResidentOut serializes assigned_care_workers on every row, and
+    # that relationship defaults to lazy="select" (see the loading-strategy
+    # note in app/models/resident.py) -- without this, listing N residents
+    # fires N extra queries. selectinload() batches them into one extra
+    # query for the whole page instead, without touching the relationship's
+    # own default (so a single-resident GET below still lazy-loads fine,
+    # and this doesn't cascade into eager-loading each care worker's own
+    # assigned_residents in turn).
+    query = db.query(Resident).options(selectinload(Resident.assigned_care_workers))
 
     if current_user.role != "manager":
         query = query.filter(Resident.status == "active")
@@ -59,7 +76,12 @@ def get_resident(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    resident = db.query(Resident).filter(Resident.id == id).first()
+    resident = (
+        db.query(Resident)
+        .options(selectinload(Resident.assigned_care_workers))
+        .filter(Resident.id == id)
+        .first()
+    )
 
     if not resident:
         raise HTTPException(
@@ -73,7 +95,7 @@ def get_resident(
 @router.put("/{id}", response_model=ResidentOut)
 def update_resident(
     id: int,
-    updated_resident: ResidentCreate,
+    updated_resident: ResidentUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_manager),
 ):

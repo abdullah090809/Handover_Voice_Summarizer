@@ -2,9 +2,11 @@ import os
 import uuid
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from app.cores.database import get_db
 from app.cores.security import get_current_user, hash_password, verify_password, require_manager, blocklist_token, clear_token_blocklist
+from app.models.assignment import ResidentAssignment
+from app.models.resident import Resident
 from app.models.user import User
 from app.schemas.user import (
     ChangePassword,
@@ -154,7 +156,25 @@ def list_users(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_manager),
 ):
-    return db.query(User).offset(skip).limit(limit).all()
+    # Stage 6: UserOut serializes manager, assigned_residents, and
+    # managed_care_workers on every row. All three default to lazy="select"
+    # (see the loading-strategy note in app/models/user.py), so without
+    # this a page of N users fires up to 3N extra queries. selectinload()
+    # batches each relationship into one extra query for the whole page.
+    # These are query-time options, not a change to the relationships'
+    # own default -- they don't cascade into eager-loading e.g. each
+    # managed care worker's own assigned_residents in turn.
+    return (
+        db.query(User)
+        .options(
+            selectinload(User.manager),
+            selectinload(User.assigned_residents),
+            selectinload(User.managed_care_workers),
+        )
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
 
 
 @router.get("/{id}", response_model=UserOut)
@@ -163,7 +183,16 @@ def get_user_detail(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_manager),
 ):
-    user = db.query(User).filter(User.id == id).first()
+    user = (
+        db.query(User)
+        .options(
+            selectinload(User.manager),
+            selectinload(User.assigned_residents),
+            selectinload(User.managed_care_workers),
+        )
+        .filter(User.id == id)
+        .first()
+    )
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -192,6 +221,19 @@ def create_user(
             detail="Username already taken",
         )
 
+    if payload.employee_id:
+        existing_employee_id = db.query(User).filter(User.employee_id == payload.employee_id).first()
+        if existing_employee_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Employee ID already in use",
+            )
+
+    extra_fields = payload.model_dump(
+        exclude={"email", "username", "password", "role", "name", "phone_number", "job_title"},
+        exclude_unset=True,
+    )
+
     new_user = User(
         email=payload.email,
         username=payload.username,
@@ -200,10 +242,19 @@ def create_user(
         name=payload.name,
         phone_number=payload.phone_number,
         job_title=payload.job_title,
+        **extra_fields,
     )
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
+
+    # Auto-generate a human-facing employee ID once we know the row's id,
+    # unless the manager already supplied their own scheme on create.
+    if not new_user.employee_id:
+        new_user.employee_id = f"EMP-{new_user.id:04d}"
+        db.commit()
+        db.refresh(new_user)
+
     return new_user
 
 
@@ -247,6 +298,14 @@ def update_user(
         pw = data.pop("password")
         if pw:
             user.password = hash_password(pw)
+
+    if "employee_id" in data and data["employee_id"]:
+        existing = db.query(User).filter(User.employee_id == data["employee_id"], User.id != id).first()
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Employee ID already in use",
+            )
 
     for field, value in data.items():
         setattr(user, field, value)
@@ -302,6 +361,35 @@ def deactivate_user(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User is already deactivated",
         )
+
+    # Stage 6: a care worker with active residents still relies on someone
+    # covering that caseload. Rather than silently detaching their
+    # assignments (which would leave those residents unassigned with no
+    # record of who picks them up), block the deactivation and require the
+    # manager to reassign the caseload first.
+    if user.role == "care_worker":
+        active_resident_count = (
+            db.query(Resident)
+            .join(
+                ResidentAssignment,
+                ResidentAssignment.resident_id == Resident.id,
+            )
+            .filter(
+                ResidentAssignment.care_worker_id == user.id,
+                Resident.status == "active",
+            )
+            .count()
+        )
+        if active_resident_count:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"Cannot deactivate this care worker: they still have "
+                    f"{active_resident_count} active resident(s) assigned. "
+                    "Reassign their caseload first."
+                ),
+            )
+
     user.previous_role = user.role
     user.role = "deactivated"
     db.commit()

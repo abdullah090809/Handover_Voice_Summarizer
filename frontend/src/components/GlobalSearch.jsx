@@ -96,7 +96,7 @@ export default function GlobalSearch() {
   function goToResident(r) {
     setOpen(false);
     closeMobile();
-    navigate('/residents', { state: { openResidentId: r.id }});
+    navigate(`/residents/${r.id}`);
   }
 
   function goToTeam() {

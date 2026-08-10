@@ -67,6 +67,16 @@ export function handoverStatusLabel(s) {
   return map[s] || s;
 }
 
+export function employmentStatusLabel(s) {
+  const map = { active: 'Active', on_leave: 'On leave', suspended: 'Suspended', left: 'Left' };
+  return map[s] || s;
+}
+
+export function employmentTypeLabel(s) {
+  const map = { full_time: 'Full-time', part_time: 'Part-time', bank: 'Bank', agency: 'Agency', volunteer: 'Volunteer' };
+  return map[s] || s;
+}
+
 /** Truncates text to n characters, appending an ellipsis if it was cut. */
 export function truncate(text, n) {
   if (!text) return '';

@@ -14,8 +14,11 @@ import AuthPage from './pages/AuthPage.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
 import HandoversPage from './pages/HandoversPage.jsx';
 import ResidentsPage from './pages/ResidentsPage.jsx';
+import ResidentProfilePage from './pages/ResidentProfilePage.jsx';
 import ShiftsPage from './pages/ShiftsPage.jsx';
 import TeamPage from './pages/TeamPage.jsx';
+import CareWorkerProfilePage from './pages/CareWorkerProfilePage.jsx';
+import ManagerProfilePage from './pages/ManagerProfilePage.jsx';
 import NotificationsPage from './pages/NotificationsPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
 import AuditPage from './pages/AuditPage.jsx';
@@ -47,12 +50,29 @@ export default function App() {
                   <Route path="/dashboard" element={<DashboardPage />} />
                   <Route path="/handovers" element={<HandoversPage />} />
                   <Route path="/residents" element={<ResidentsPage />} />
+                  <Route path="/residents/:id" element={<ResidentProfilePage />} />
                   <Route path="/shifts" element={<ShiftsPage />} />
                   <Route
                     path="/team"
                     element={
                       <RequireManager>
                         <TeamPage />
+                      </RequireManager>
+                    }
+                  />
+                  <Route
+                    path="/team/:id"
+                    element={
+                      <RequireManager>
+                        <CareWorkerProfilePage />
+                      </RequireManager>
+                    }
+                  />
+                  <Route
+                    path="/managers/:id"
+                    element={
+                      <RequireManager>
+                        <ManagerProfilePage />
                       </RequireManager>
                     }
                   />

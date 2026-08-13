@@ -7,46 +7,42 @@ import { useToast } from '../lib/ToastContext.jsx';
 
 const ACCEPTED_TYPES = ['audio/wav', 'audio/mpeg', 'audio/mp3', 'audio/m4a', 'audio/x-m4a', 'audio/webm', 'audio/ogg'];
 
-// Picks the shift to preselect: the ongoing one (no end_time) if there is
-// one, otherwise the most recently started shift.
-function pickDefaultShiftId(shifts) {
-  if (!shifts || shifts.length === 0) return '';
+// A handover should only ever attach to the shift the worker is actually
+// on right now, not to any shift they pick from a list. If they're clocked
+// in, that's the ongoing shift (no end_time). If they're clocked out,
+// it's whichever of their completed shifts ended most recently — i.e. the
+// shift they just came off. There is deliberately no "browse past shifts"
+// path here; that history lives on the Shifts page.
+function getRelevantShift(shifts) {
+  if (!shifts || shifts.length === 0) return null;
   const ongoing = shifts.find((s) => !s.end_time);
-  if (ongoing) return ongoing.id;
-  const mostRecent = [...shifts].sort(
-    (a, b) => new Date(b.start_time) - new Date(a.start_time)
-  )[0];
-  return mostRecent?.id ?? '';
+  if (ongoing) return ongoing;
+  const completed = shifts.filter((s) => s.end_time);
+  if (completed.length === 0) return null;
+  return completed.reduce((latest, s) => (new Date(s.end_time) > new Date(latest.end_time) ? s : latest));
 }
 
-function formatShiftLabel(s) {
-  const dateStr = new Date(s.start_time).toLocaleString(undefined, {
+function formatShiftTime(iso) {
+  return new Date(iso).toLocaleString(undefined, {
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
   });
-  return `Shift #${s.shift_number ?? s.id} · ${dateStr}${!s.end_time ? ' (ongoing)' : ''}`;
 }
 
 export default function NewHandoverModal({ residents, shifts, onClose, onSubmitted }) {
   const showToast = useToast();
   const [tab, setTab] = useState('record');
   const [residentId, setResidentId] = useState(residents[0]?.id ?? '');
-  const [shiftId, setShiftId] = useState(() => pickDefaultShiftId(shifts));
   const [file, setFile] = useState(null);
   const [dragOver, setDragOver] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  // Re-derive the default shift if the shifts prop changes after mount
-  // (e.g. modal opened before shifts finished loading).
-  useEffect(() => {
-    setShiftId((current) => {
-      if (current && shifts.some((s) => s.id === current)) return current;
-      return pickDefaultShiftId(shifts);
-    });
-  }, [shifts]);
+  // The shift is derived, never picked — see getRelevantShift above.
+  const relevantShift = useMemo(() => getRelevantShift(shifts), [shifts]);
+  const shiftId = relevantShift?.id ?? '';
 
   // --- Recording state --------------------------------------------------
   const [recording, setRecording] = useState(false);
@@ -347,7 +343,8 @@ export default function NewHandoverModal({ residents, shifts, onClose, onSubmitt
     e.preventDefault();
     setError('');
     const audio = tab === 'record' ? recordedBlob : file;
-    if (!residentId || !shiftId) return setError('Choose a resident and a shift.');
+    if (!residentId) return setError('Choose a resident.');
+    if (!shiftId) return setError('No shift on record — clock in before recording a handover.');
     if (!audio) return setError(tab === 'record' ? 'Record an audio note first.' : 'Choose an audio file first.');
 
     setSubmitting(true);
@@ -390,12 +387,17 @@ export default function NewHandoverModal({ residents, shifts, onClose, onSubmitt
         />
       </Field>
 
-      <Field label="Shift" htmlFor="ho-shift" hint="Only shifts assigned to you appear here">
-        <ShiftDropdown
-          shifts={shifts}
-          value={shiftId}
-          onChange={setShiftId}
-        />
+      <Field
+        label="Shift"
+        hint={
+          relevantShift
+            ? relevantShift.end_time
+              ? "You're clocked out — this logs against the shift you just finished."
+              : "You're clocked in — this logs against your current shift."
+            : undefined
+        }
+      >
+        <ShiftStatus shift={relevantShift} />
       </Field>
 
       <div className="field">
@@ -483,97 +485,31 @@ export default function NewHandoverModal({ residents, shifts, onClose, onSubmitt
 // Themed shift dropdown — no search (shifts list is short), just a custom
 // popover list so it matches the dark UI instead of falling back to the
 // browser's native <select> popup styling.
-function ShiftDropdown({ shifts, value, onChange }) {
-  const [open, setOpen] = useState(false);
-  const [highlightIndex, setHighlightIndex] = useState(0);
-  const wrapperRef = useRef(null);
-
-  const selected = shifts.find((s) => s.id === value) ?? null;
-
-  useEffect(() => {
-    function onClickOutside(e) {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', onClickOutside);
-    return () => document.removeEventListener('mousedown', onClickOutside);
-  }, []);
-
-  useEffect(() => {
-    if (open) {
-      const idx = shifts.findIndex((s) => s.id === value);
-      setHighlightIndex(idx >= 0 ? idx : 0);
-    }
-  }, [open, shifts, value]);
-
-  function select(s) {
-    onChange(s.id);
-    setOpen(false);
+// Read-only — the shift is derived (see getRelevantShift), never chosen
+// from a list. Three states: currently clocked in, clocked out (shows the
+// shift just finished), or no shift on record at all yet.
+function ShiftStatus({ shift }) {
+  if (!shift) {
+    return (
+      <div className="shift-status-box shift-status-box-empty">
+        <span className="shift-status-dot shift-status-dot-none" />
+        <span>No shift on record — clock in before recording a handover.</span>
+      </div>
+    );
   }
 
-  function onKeyDown(e) {
-    if (!open && (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ')) {
-      e.preventDefault();
-      setOpen(true);
-      return;
-    }
-    if (!open) return;
-
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setHighlightIndex((i) => Math.min(i + 1, shifts.length - 1));
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setHighlightIndex((i) => Math.max(i - 1, 0));
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      const pick = shifts[highlightIndex];
-      if (pick) select(pick);
-    } else if (e.key === 'Escape') {
-      setOpen(false);
-    }
-  }
-
-  if (shifts.length === 0) {
-    return <div className="select-empty">No shifts found</div>;
-  }
+  const isOngoing = !shift.end_time;
 
   return (
-    <div className="combobox" ref={wrapperRef}>
-      <button
-        type="button"
-        id="ho-shift"
-        className="select combobox-closed-btn"
-        onClick={() => setOpen((o) => !o)}
-        onKeyDown={onKeyDown}
-        role="combobox"
-        aria-expanded={open}
-        aria-haspopup="listbox"
-      >
-        <span>{selected ? formatShiftLabel(selected) : 'Select a shift'}</span>
-        <ChevronDown size={15} className="combobox-caret" />
-      </button>
-
-      {open && (
-        <ul className="combobox-list" role="listbox">
-          {shifts.map((s, i) => (
-            <li
-              key={s.id}
-              role="option"
-              aria-selected={s.id === value}
-              className={`combobox-option ${i === highlightIndex ? 'highlighted' : ''} ${s.id === value ? 'selected' : ''}`}
-              onMouseEnter={() => setHighlightIndex(i)}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                select(s);
-              }}
-            >
-              <span>{formatShiftLabel(s)}</span>
-            </li>
-          ))}
-        </ul>
-      )}
+    <div className="shift-status-box">
+      <span className={`shift-status-dot ${isOngoing ? 'shift-status-dot-active' : 'shift-status-dot-past'}`} />
+      <span>
+        {isOngoing ? (
+          <>Current shift &middot; started {formatShiftTime(shift.start_time)}</>
+        ) : (
+          <>Last shift &middot; clocked out {formatShiftTime(shift.end_time)}</>
+        )}
+      </span>
     </div>
   );
 }

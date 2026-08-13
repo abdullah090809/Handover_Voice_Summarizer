@@ -1,9 +1,10 @@
+from app.cores.security import hash_password
 from app.models.assignment import ResidentAssignment
 from app.models.notification import Notification
 from app.models.resident import Resident
 from app.models.user import User
 
-from tests.conftest import auth_headers_for, make_worker
+from .conftest import auth_headers_for, make_worker
 
 
 # ---------------------------------------------------------------------------
@@ -667,7 +668,7 @@ def test_list_manager_care_workers_other_manager_allowed(
     other_manager = User(
         email="othermanager@test.com",
         username="othermanager",
-        password="x",
+        password=hash_password("password123"),
         role="manager",
     )
     db_session.add(other_manager)
@@ -700,3 +701,37 @@ def test_list_manager_care_workers_worker_id_rejected(
     )
     assert response.status_code == 400
     assert "not 'manager'" in response.json()["detail"]
+
+
+# ---------------------------------------------------------------------------
+# _notify_assignment_change -- websocket broadcast failure is swallowed
+# ---------------------------------------------------------------------------
+
+def test_assign_care_worker_succeeds_even_if_broadcast_fails(
+    client, manager_auth_headers, test_resident, test_user, db_session, monkeypatch
+):
+    """A websocket broadcast failure while notifying of an assignment
+    change is logged and swallowed -- it must never fail the request or
+    roll back the assignment/notification that was already committed."""
+
+    async def _boom(*args, **kwargs):
+        raise RuntimeError("broker unreachable")
+
+    monkeypatch.setattr("app.routers.assignments.ws_manager.broadcast", _boom)
+
+    response = client.post(
+        f"/assignments/residents/{test_resident.id}/care-workers/{test_user.id}",
+        headers=manager_auth_headers,
+    )
+
+    assert response.status_code == 201
+
+    link = (
+        db_session.query(ResidentAssignment)
+        .filter(
+            ResidentAssignment.resident_id == test_resident.id,
+            ResidentAssignment.care_worker_id == test_user.id,
+        )
+        .first()
+    )
+    assert link is not None

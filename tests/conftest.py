@@ -82,15 +82,50 @@ async def _fake_ws_subscriber(manager):
         raise
 
 
+def _reset_schema():
+    """drop_all/create_all against a shared Postgres instance can race a
+    connection from the *previous* test that's still being torn down
+    server-side even after our own engine.dispose() -- disposing the pool
+    only guarantees we stop handing out those connections, not that
+    Postgres has finished closing them. When that race is lost, create_all
+    can silently no-op on a table whose DROP hadn't actually landed yet,
+    leaving it missing for the test that follows (surfaces as
+    "relation ... does not exist"). Retry a few times with a short backoff
+    rather than trusting the first attempt.
+    """
+    import time
+    from sqlalchemy.exc import DBAPIError
+
+    max_attempts = 5
+    for attempt in range(max_attempts):
+        try:
+            Base.metadata.drop_all(bind=engine)
+            Base.metadata.create_all(bind=engine)
+            return
+        except DBAPIError:
+            engine.dispose()
+            if attempt == max_attempts - 1:
+                raise
+            time.sleep(0.2 * (attempt + 1))
+
+
 @pytest.fixture()
 def db_session():
-    Base.metadata.drop_all(bind=engine)
-    Base.metadata.create_all(bind=engine)
+    _reset_schema()
     session = TestingSessionLocal()
     try:
         yield session
     finally:
         session.close()
+        # Force every pooled connection to be discarded rather than reused.
+        # Without this, a connection left idle-in-transaction by a prior
+        # test (e.g. an async endpoint that raised before its transaction
+        # was rolled back) can linger in the pool and hold a lock that the
+        # *next* test's drop_all needs -- producing exactly the kind of
+        # cascading "deadlock detected" / "relation does not exist" /
+        # stale-row errors seen when one test's DDL races a leftover
+        # connection from another.
+        engine.dispose()
 
 
 @pytest.fixture()
@@ -246,11 +281,24 @@ class FakeRedis:
         self.store[key] = str(value)
         return True
 
-    def delete(self, key):
-        if key in self.store:
-            del self.store[key]
-            return 1
-        return 0
+    def delete(self, *keys):
+        removed = 0
+        for key in keys:
+            if key in self.store:
+                del self.store[key]
+                removed += 1
+        return removed
+
+    def keys(self, pattern="*"):
+        # Real redis KEYS supports glob patterns (handover.py uses
+        # "handovers:list:*"). fnmatch gives us the same semantics without
+        # a real redis instance -- without this method at all,
+        # _invalidate_handover_cache()'s call to redis_client.keys(...)
+        # raises AttributeError, which its own try/except silently
+        # swallows, so cache invalidation quietly never actually ran in
+        # any test.
+        import fnmatch
+        return [k for k in self.store if fnmatch.fnmatch(k, pattern)]
 
     def ping(self):
         return True
@@ -267,4 +315,4 @@ def _mock_redis_client(monkeypatch):
     #     from app.cores.redis_client import redis_client
     #     return redis_client
     # So patching app.cores.redis_client.redis_client works perfectly because security.py imports it!
-    yield fake
+    yield fake

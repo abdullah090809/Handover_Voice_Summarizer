@@ -13,7 +13,7 @@ from app.models.pending_user import PendingUser
 from app.models.resident import Resident
 from app.models.user import User
 from app.services.email import send_urgent_handover_email, send_verification_email, send_password_reset_email
-from app.services.summarizer import summarize_transcript
+from app.services.summarizer import GeminiQuotaExceededError, summarize_transcript
 from app.services.transcription import transcribe_audio
 
 logger = logging.getLogger(__name__)
@@ -37,48 +37,6 @@ def send_password_reset_email_task(to_email: str, otp_code: str) -> None:
     except Exception as e:
         logger.error(f"Async password reset email sending failed: {e}")
         raise
-
-
-@celery_app.task
-def cleanup_expired_pending_users() -> int:
-    """Runs on a schedule (see celery_app.conf.beat_schedule). Deletes
-    pending_users rows that have been sitting unverified for a while --
-    i.e. someone started registering but never came back to verify.
-    Without this, an abandoned signup permanently reserves its
-    username/email in pending_users forever, since the row is otherwise
-    only ever deleted on successful verify.
-
-    We don't delete the instant otp_expires_at passes (that's only 10
-    minutes -- see security.get_otp_expiry) because someone who requested
-    a code and comes back later to hit "resend" should still find their
-    in-progress signup. Instead we wait a grace period past expiry
-    before treating it as truly abandoned.
-
-    otp_expires_at is a tz-aware UTC timestamptz column, and Postgres
-    timestamptz comparisons are done in absolute time regardless of the
-    server's local OS timezone -- so this is correct no matter what
-    timezone the API/worker container or the person registering is in.
-    """
-    grace_period = timedelta(hours=24)
-    cutoff = datetime.now(timezone.utc) - grace_period
-
-    db = SessionLocal()
-    try:
-        deleted = (
-            db.query(PendingUser)
-            .filter(PendingUser.otp_expires_at < cutoff)
-            .delete(synchronize_session=False)
-        )
-        db.commit()
-        if deleted:
-            logger.info(f"cleanup_expired_pending_users: removed {deleted} expired pending signup(s)")
-        return deleted
-    except Exception:
-        db.rollback()
-        logger.exception("cleanup_expired_pending_users failed")
-        raise
-    finally:
-        db.close()
 
 
 @celery_app.task
@@ -142,6 +100,13 @@ def _should_cleanup_temp_file(task, task_failed_with_exception: bool) -> bool:
 
 
 def _is_quota_error(exc: Exception) -> bool:
+    # summarize_transcript() wraps a 429 from Gemini in
+    # GeminiQuotaExceededError rather than letting the raw ClientError
+    # escape (see app/services/summarizer.py), so that's the case that
+    # actually reaches here in practice. The ClientError/string checks are
+    # kept as a fallback in case a raw ClientError ever does bubble up.
+    if isinstance(exc, GeminiQuotaExceededError):
+        return True
     return "RESOURCE_EXHAUSTED" in str(exc) or "429" in str(exc)
 
 
@@ -188,8 +153,8 @@ def process_handover_note(self, note_id: int, tmp_path: str) -> None:
 
         try:
             structured_summary = summarize_transcript(transcript)
-        except (ClientError, Exception) as e:
-            if isinstance(e, ClientError) and _is_quota_error(e):
+        except (GeminiQuotaExceededError, ClientError, Exception) as e:
+            if isinstance(e, (GeminiQuotaExceededError, ClientError)) and _is_quota_error(e):
                 logger.warning(
                     "Gemini quota exceeded for note %s; saving transcript without summary", note_id
                 )

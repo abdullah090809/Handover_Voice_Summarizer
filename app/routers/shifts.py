@@ -55,6 +55,12 @@ def list_my_shifts(
     results = (
         db.query(Shift)
         .filter(Shift.worker_id == query_id)
+        # Most-recent-first. Without this, once a worker has logged more
+        # shifts than fit in one page, `limit` silently drops recent
+        # shifts (whichever rows happen to sort first) instead of old
+        # ones — which breaks anything that assumes "the current/most
+        # recent shift" is in the returned list, like the handover form.
+        .order_by(Shift.start_time.desc())
         .offset(skip)
         .limit(limit)
         .all()

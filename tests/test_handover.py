@@ -1,4 +1,5 @@
 import io
+import json
 from datetime import date, datetime, timedelta, timezone
 from unittest.mock import patch
 
@@ -756,3 +757,228 @@ def test_manager_sees_all_notes_in_list(client, manager_auth_headers, test_shift
     ids = [r["id"] for r in response.json()["results"]]
     assert note_a.id in ids
     assert note_b.id in ids
+
+# ---------------------------------------------------------------------------
+# PATCH /handover/{id}/follow-ups
+# ---------------------------------------------------------------------------
+
+def _note_with_follow_ups(db_session, test_shift, test_resident, actions, resolved=None):
+    note = HandoverNote(
+        shift_id=test_shift.id,
+        resident_id=test_resident.id,
+        summary_json={**_mock_summary("low"), "follow_up_actions": actions},
+        urgency_flag="low",
+        resolved_follow_ups=resolved or [],
+    )
+    db_session.add(note)
+    db_session.commit()
+    db_session.refresh(note)
+    return note
+
+
+def test_resolve_follow_up_success(client, worker_auth_headers, test_shift, test_resident, db_session):
+    note = _note_with_follow_ups(
+        db_session, test_shift, test_resident, ["Call GP about medication"]
+    )
+
+    response = client.patch(
+        f"/handover/{note.id}/follow-ups",
+        json={"action": "Call GP about medication", "resolved": True},
+        headers=worker_auth_headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["resolved_follow_ups"] == ["Call GP about medication"]
+
+
+def test_unresolve_follow_up_removes_it(client, worker_auth_headers, test_shift, test_resident, db_session):
+    note = _note_with_follow_ups(
+        db_session,
+        test_shift,
+        test_resident,
+        ["Call GP about medication"],
+        resolved=["Call GP about medication"],
+    )
+
+    response = client.patch(
+        f"/handover/{note.id}/follow-ups",
+        json={"action": "Call GP about medication", "resolved": False},
+        headers=worker_auth_headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["resolved_follow_ups"] == []
+
+
+def test_unresolve_follow_up_not_currently_resolved_is_a_noop(
+    client, worker_auth_headers, test_shift, test_resident, db_session
+):
+    note = _note_with_follow_ups(db_session, test_shift, test_resident, ["Check hydration"])
+
+    response = client.patch(
+        f"/handover/{note.id}/follow-ups",
+        json={"action": "Check hydration", "resolved": False},
+        headers=worker_auth_headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["resolved_follow_ups"] == []
+
+
+def test_resolve_follow_up_unknown_action_rejected(
+    client, worker_auth_headers, test_shift, test_resident, db_session
+):
+    note = _note_with_follow_ups(db_session, test_shift, test_resident, ["Check hydration"])
+
+    response = client.patch(
+        f"/handover/{note.id}/follow-ups",
+        json={"action": "Something never mentioned", "resolved": True},
+        headers=worker_auth_headers,
+    )
+    assert response.status_code == 400
+    assert "not found on this handover note" in response.json()["detail"]
+
+
+def test_resolve_follow_up_note_not_found(client, worker_auth_headers):
+    response = client.patch(
+        "/handover/99999/follow-ups",
+        json={"action": "Anything", "resolved": True},
+        headers=worker_auth_headers,
+    )
+    assert response.status_code == 404
+
+
+def test_resolve_follow_up_other_workers_shift_forbidden(
+    client, worker_auth_headers, test_resident, db_session
+):
+    from .conftest import make_worker
+
+    other_worker = make_worker(db_session, email="otherfu@test.com")
+    other_shift = Shift(worker_id=other_worker.id, start_time=datetime.now(timezone.utc))
+    db_session.add(other_shift)
+    db_session.commit()
+    db_session.refresh(other_shift)
+
+    note = _note_with_follow_ups(db_session, other_shift, test_resident, ["Check hydration"])
+
+    response = client.patch(
+        f"/handover/{note.id}/follow-ups",
+        json={"action": "Check hydration", "resolved": True},
+        headers=worker_auth_headers,
+    )
+    assert response.status_code == 403
+
+
+def test_resolve_follow_up_as_manager_any_note_allowed(
+    client, manager_auth_headers, test_shift, test_resident, db_session
+):
+    note = _note_with_follow_ups(db_session, test_shift, test_resident, ["Check hydration"])
+
+    response = client.patch(
+        f"/handover/{note.id}/follow-ups",
+        json={"action": "Check hydration", "resolved": True},
+        headers=manager_auth_headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["resolved_follow_ups"] == ["Check hydration"]
+
+
+def test_resolve_follow_up_requires_auth(client, test_shift, test_resident, db_session):
+    note = _note_with_follow_ups(db_session, test_shift, test_resident, ["Check hydration"])
+    response = client.patch(
+        f"/handover/{note.id}/follow-ups",
+        json={"action": "Check hydration", "resolved": True},
+    )
+    assert response.status_code == 401
+
+
+def test_resolve_follow_up_invalidates_list_cache(
+    client, worker_auth_headers, test_shift, test_resident, db_session, _mock_redis_client
+):
+    """Resolving a follow-up should invalidate the cached list response so
+    a subsequent list call reflects the change rather than serving stale
+    cached data for up to 10s."""
+    note = _note_with_follow_ups(db_session, test_shift, test_resident, ["Check hydration"])
+
+    # Populate the list cache.
+    first = client.get("/handover/", headers=worker_auth_headers)
+    assert first.status_code == 200
+    assert any(k.startswith("handovers:list:") for k in _mock_redis_client.store)
+
+    client.patch(
+        f"/handover/{note.id}/follow-ups",
+        json={"action": "Check hydration", "resolved": True},
+        headers=worker_auth_headers,
+    )
+
+    # The stale cache entry should be gone, so this list call re-queries
+    # and reflects the newly-resolved follow-up.
+    second = client.get("/handover/", headers=worker_auth_headers)
+    resolved_lists = [
+        r["resolved_follow_ups"] for r in second.json()["results"] if r["id"] == note.id
+    ]
+    assert resolved_lists == [["Check hydration"]]
+
+
+# ---------------------------------------------------------------------------
+# GET /handover/ -- list cache hit short-circuits the DB query
+# ---------------------------------------------------------------------------
+
+def test_list_handover_notes_serves_cached_response(
+    client, worker_auth_headers, test_user, monkeypatch
+):
+    cache_key = f"handovers:list:{test_user.id}:{test_user.role}:None:None:None:None:0:50"
+    fake_cached_payload = {
+        "total": 1,
+        "results": [
+            {
+                "id": 424242,
+                "shift_id": 1,
+                "resident_id": 1,
+                "raw_transcript": "from cache",
+                "summary_json": None,
+                "urgency_flag": "low",
+                "status": "complete",
+                "error_message": None,
+                "created_at": "2026-01-01T00:00:00+00:00",
+                "resolved_follow_ups": [],
+                "submitted_by": None,
+                "shift_number": None,
+            }
+        ],
+    }
+
+    def fake_get(key):
+        if key == cache_key:
+            return json.dumps(fake_cached_payload)
+        return None
+
+    monkeypatch.setattr("app.routers.handover.redis_client.get", fake_get)
+
+    response = client.get("/handover/", headers=worker_auth_headers)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total"] == 1
+    assert body["results"][0]["id"] == 424242
+    assert body["results"][0]["raw_transcript"] == "from cache"
+
+
+def test_list_handover_notes_cache_read_failure_falls_back_to_db(
+    client, worker_auth_headers, test_shift, test_resident, db_session, monkeypatch
+):
+    """If reading the cache itself raises, the endpoint should fall back
+    to a normal DB-backed response rather than 500ing."""
+    note = HandoverNote(
+        shift_id=test_shift.id, resident_id=test_resident.id,
+        summary_json=_mock_summary("low"), urgency_flag="low",
+    )
+    db_session.add(note)
+    db_session.commit()
+
+    def broken_get(key):
+        raise RuntimeError("redis down")
+
+    monkeypatch.setattr("app.routers.handover.redis_client.get", broken_get)
+
+    response = client.get("/handover/", headers=worker_auth_headers)
+    assert response.status_code == 200
+    assert any(r["id"] == note.id for r in response.json()["results"])

@@ -269,6 +269,46 @@
   cursor: pointer;
 }
 
+/* Read-only shift indicator in the New Handover modal — replaces what
+   used to be a full dropdown of past shifts. Same footprint as .select so
+   the field doesn't jump around, but not interactive. */
+.shift-status-box {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 42px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-hover-strong);
+  color: var(--text-primary);
+  font-size: var(--text-base);
+}
+
+.shift-status-box-empty {
+  color: var(--text-secondary);
+}
+
+.shift-status-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.shift-status-dot-active {
+  background: var(--teal-500);
+  box-shadow: 0 0 0 3px var(--teal-500-bg, rgba(23, 138, 126, 0.16));
+}
+
+.shift-status-dot-past {
+  background: var(--text-tertiary);
+}
+
+.shift-status-dot-none {
+  background: var(--urgency-medium);
+}
+
 .checkbox-row {
   display: flex;
   align-items: center;

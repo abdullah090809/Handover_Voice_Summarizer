@@ -79,15 +79,29 @@ def _save_upload_to_tempfile(audio: UploadFile) -> str:
 
 
 import json
-from app.cores.redis_client import redis_client
+import app.cores.redis_client as _redis_module
+
+
+def __getattr__(name: str):
+    # PEP 562 module-level __getattr__. Keeps `app.routers.handover.redis_client`
+    # resolvable (tests patch individual methods on it, e.g.
+    # `monkeypatch.setattr("app.routers.handover.redis_client.get", ...)`),
+    # while always resolving to whatever object is *currently* assigned at
+    # `app.cores.redis_client.redis_client` rather than a copy captured at
+    # import time. A plain `from app.cores.redis_client import redis_client`
+    # here would bind a snapshot that later `monkeypatch.setattr` calls on
+    # the source module can't reach.
+    if name == "redis_client":
+        return _redis_module.redis_client
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def _invalidate_handover_cache():
     try:
-        keys = redis_client.keys("handovers:list:*")
+        keys = _redis_module.redis_client.keys("handovers:list:*")
         if keys:
             # pyrefly: ignore [not-iterable]
-            redis_client.delete(*keys)
+            _redis_module.redis_client.delete(*keys)
     except Exception:
         logger.exception("Failed to invalidate handover list cache")
 
@@ -208,7 +222,7 @@ def list_handover_notes(
     # scoped result sets (managers use a separate key space).
     cache_key = f"handovers:list:{current_user.id}:{current_user.role}:{resident_id}:{urgency_flag}:{date_from}:{date_to}:{skip}:{limit}"
     try:
-        cached = redis_client.get(cache_key)
+        cached = _redis_module.redis_client.get(cache_key)
         if cached:
             # pyrefly: ignore [bad-argument-type]
             return json.loads(cached)
@@ -246,7 +260,7 @@ def list_handover_notes(
     _attach_submitters(db, results)
     response_data = {"total": total, "results": [HandoverNoteOut.model_validate(r).model_dump(mode="json") for r in results]}
     try:
-        redis_client.setex(cache_key, 10, json.dumps(response_data))  # Cache for 10 seconds
+        _redis_module.redis_client.setex(cache_key, 10, json.dumps(response_data))  # Cache for 10 seconds
     except Exception:
         logger.exception("Failed to write handover list to cache")
 

@@ -284,6 +284,88 @@ class TestSummarizerService:
         s._gemini_cb.failure_threshold = 3
         self._reset_gemini_breaker()
 
+    def test_gemini_429_retries_then_succeeds(self):
+        """A single 429 followed by a successful response should be
+        retried transparently -- the caller gets the parsed result, never
+        sees the transient error."""
+        self._reset_gemini_breaker()
+        from google.genai import errors
+
+        exc = errors.ClientError(code=429, response_json={})
+        raw = json.dumps(_VALID_SUMMARY)
+
+        with patch("app.services.summarizer.client") as mock_client, patch(
+            "app.services.summarizer.time.sleep"
+        ) as mock_sleep:
+            mock_client.models.generate_content.side_effect = [
+                exc,
+                _make_gemini_response(raw),
+            ]
+            from app.services.summarizer import summarize_transcript
+            result = summarize_transcript("Patient slept well.")
+
+        assert result["urgency_flag"] == "low"
+        assert mock_client.models.generate_content.call_count == 2
+        mock_sleep.assert_called_once()
+
+    def test_gemini_429_exhausts_retries_raises_quota_exceeded(self):
+        """429 on every attempt, all the way through _MAX_RETRIES, should
+        surface as GeminiQuotaExceededError rather than a raw ClientError
+        -- app.tasks.process_handover_note relies on this specific type to
+        take the graceful 'save transcript, mark complete' path."""
+        self._reset_gemini_breaker()
+        from google.genai import errors
+
+        exc = errors.ClientError(code=429, response_json={})
+
+        with patch("app.services.summarizer.client") as mock_client, patch(
+            "app.services.summarizer.time.sleep"
+        ):
+            mock_client.models.generate_content.side_effect = exc
+            from app.services.summarizer import summarize_transcript, GeminiQuotaExceededError
+            with pytest.raises(GeminiQuotaExceededError):
+                summarize_transcript("x")
+
+        # _MAX_RETRIES = 3
+        assert mock_client.models.generate_content.call_count == 3
+        self._reset_gemini_breaker()
+
+    def test_gemini_400_bad_request_fails_fast_not_retried(self):
+        """A non-retryable, non-403 client error (e.g. malformed request)
+        should propagate immediately without burning through retries."""
+        self._reset_gemini_breaker()
+        from google.genai import errors
+
+        exc = errors.ClientError(code=400, response_json={})
+
+        with patch("app.services.summarizer.client") as mock_client:
+            mock_client.models.generate_content.side_effect = exc
+            from app.services.summarizer import summarize_transcript
+            with pytest.raises(errors.ClientError):
+                summarize_transcript("Malformed")
+
+        assert mock_client.models.generate_content.call_count == 1
+        self._reset_gemini_breaker()
+
+    def test_gemini_circuit_open_raises_summarization_error_without_calling_api(self):
+        """When the breaker is already OPEN, summarize_transcript should
+        fail fast with GeminiSummarizationError and never even attempt the
+        underlying Gemini call."""
+        self._reset_gemini_breaker()
+        import app.services.summarizer as s
+        import time as time_module
+
+        s._gemini_cb._state = "OPEN"
+        s._gemini_cb._opened_at = time_module.monotonic()
+
+        with patch("app.services.summarizer.client") as mock_client:
+            from app.services.summarizer import summarize_transcript, GeminiSummarizationError
+            with pytest.raises(GeminiSummarizationError):
+                summarize_transcript("Anything")
+
+        mock_client.models.generate_content.assert_not_called()
+        self._reset_gemini_breaker()
+
 
 # ============================================================
 # app.services.transcription

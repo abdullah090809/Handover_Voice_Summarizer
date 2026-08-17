@@ -49,4 +49,16 @@ celery_app.conf.beat_schedule = {
         "task": "app.tasks.cleanup_expired_pending_users",
         "schedule": 3600.0,  # seconds
     },
+    # ---------------------------------------------------------------------
+    # Closes any shift left open (no end_time) past the day it started,
+    # server-side. Without this, an open shift's duration was only ever
+    # fixed by the worker's own browser (see useAutoClockOut.js) -- so a
+    # manager viewing someone else's stale open shift saw its duration
+    # keep growing until that worker happened to log back in. Runs every
+    # 15 minutes; cheap query, and closing a few minutes late is fine.
+    # ---------------------------------------------------------------------
+    "auto-clock-out-stale-shifts": {
+        "task": "app.tasks.auto_clock_out_stale_shifts",
+        "schedule": 900.0,  # seconds
+    },
 }

@@ -11,6 +11,7 @@ from app.models.handover_note import HandoverNote
 from app.models.notification import Notification
 from app.models.pending_user import PendingUser
 from app.models.resident import Resident
+from app.models.shift import Shift
 from app.models.user import User
 from app.services.email import send_urgent_handover_email, send_verification_email, send_password_reset_email
 from app.services.summarizer import GeminiQuotaExceededError, summarize_transcript
@@ -80,6 +81,59 @@ def cleanup_expired_pending_users() -> int:
     finally:
         db.close()
 
+
+@celery_app.task
+def auto_clock_out_stale_shifts() -> int:
+    """Runs on a schedule (see celery_app.conf.beat_schedule). Mirrors
+    frontend/src/lib/useAutoClockOut.js server-side: if a worker forgets
+    to clock out, don't let the shift run forever. Any shift still open
+    (end_time IS NULL) past the calendar day it started gets closed at
+    the last moment of that day.
+
+    Previously this only happened client-side, in the browser of whoever
+    had the app open — so a shift left open by a worker who doesn't log
+    back in stayed open indefinitely, and anyone viewing it (e.g. a
+    manager looking at someone else's shifts) saw its duration computed
+    against "now", ballooning the longer it went unclosed. This task
+    makes closure unconditional instead of dependent on that worker's
+    next session.
+
+    Day boundary is UTC, since there's no per-user timezone setting.
+    The frontend hook uses the browser's local day boundary instead, so
+    the two can disagree by a few hours right at midnight in either
+    direction -- acceptable, since this is a safety net for shifts left
+    open far longer than that.
+    """
+    now_utc = datetime.now(timezone.utc)
+    today = now_utc.date()
+
+    db = SessionLocal()
+    try:
+        open_shifts = db.query(Shift).filter(Shift.end_time.is_(None)).all()
+        closed = 0
+        for shift in open_shifts:
+            start = shift.start_time
+            if start.tzinfo is None:
+                start = start.replace(tzinfo=timezone.utc)
+            if start.date() >= today:
+                continue  # still today (or clock skew) -- leave it open
+
+            end_of_start_day = datetime.combine(
+                start.date(), datetime.max.time(), tzinfo=timezone.utc
+            )
+            shift.end_time = end_of_start_day  # pyrefly: ignore [bad-assignment]
+            closed += 1
+
+        db.commit()
+        if closed:
+            logger.info(f"auto_clock_out_stale_shifts: closed {closed} stale open shift(s)")
+        return closed
+    except Exception:
+        db.rollback()
+        logger.exception("auto_clock_out_stale_shifts failed")
+        raise
+    finally:
+        db.close()
 
 
 def _publish_ws(event: dict) -> None:

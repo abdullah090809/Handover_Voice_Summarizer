@@ -47,3 +47,5 @@ htmlcov/
 Thumbs.db
 
 Audio Test Files/
+# --- Node / frontend ---
+node_modules/

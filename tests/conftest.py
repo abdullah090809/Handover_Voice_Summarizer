@@ -16,6 +16,7 @@ from app.models.handover_note import HandoverNote  # noqa: F401 (ensures table i
 from app.models.notification import Notification  # noqa: F401
 from app.models.password_reset import PasswordReset  # noqa: F401
 from app.models.pending_user import PendingUser  # noqa: F401
+from app.models.device_token import DeviceToken  # noqa: F401
 from app.models.resident import Resident
 from app.models.shift import Shift
 from app.models.user import User

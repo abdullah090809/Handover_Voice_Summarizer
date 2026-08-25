@@ -9,7 +9,6 @@ import {
   Bell,
   ShieldCheck,
   UserRound,
-  Stethoscope,
   X,
   ChevronsUpDown,
   KeyRound,
@@ -100,7 +99,7 @@ export default function Sidebar({ mobileOpen, collapsed, onClose }) {
         )}
         <div className="sidebar-brand">
           <div className="sidebar-brand-mark">
-            <Stethoscope size={18} />
+            <img src="/logo.png" alt="" />
           </div>
           <div className="sidebar-brand-text">
             <strong>Handover</strong>

@@ -2,6 +2,8 @@ import io
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
+import pytest
+
 from app.models.assignment import ResidentAssignment
 from app.models.password_reset import PasswordReset
 from app.models.resident import Resident
@@ -921,6 +923,104 @@ def test_update_user_employment_status_from_left_clears_blocklist(
     fresh_headers = auth_headers_for(test_user)
     me_resp = client.get("/users/me", headers=fresh_headers)
     assert me_resp.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# PATCH /users/{id} -- employment_status -> suspended/left blocked by
+# active caseload (same rule as /deactivate)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("new_status", ["suspended", "left"])
+def test_update_employment_status_with_active_residents_blocked(
+    client, manager_auth_headers, test_user, db_session, new_status
+):
+    resident = Resident(name="Active Resident", status="active")
+    db_session.add(resident)
+    db_session.commit()
+    db_session.refresh(resident)
+    db_session.add(
+        ResidentAssignment(resident_id=resident.id, care_worker_id=test_user.id)
+    )
+    db_session.commit()
+
+    response = client.patch(
+        f"/users/{test_user.id}",
+        json={"employment_status": new_status},
+        headers=manager_auth_headers,
+    )
+    assert response.status_code == 400
+    assert "still have 1 active resident" in response.json()["detail"]
+
+    db_session.refresh(test_user)
+    assert test_user.employment_status == "active"
+
+
+def test_update_employment_status_with_only_discharged_residents_allowed(
+    client, manager_auth_headers, test_user, db_session
+):
+    resident = Resident(name="Discharged Resident", status="discharged")
+    db_session.add(resident)
+    db_session.commit()
+    db_session.refresh(resident)
+    db_session.add(
+        ResidentAssignment(resident_id=resident.id, care_worker_id=test_user.id)
+    )
+    db_session.commit()
+
+    response = client.patch(
+        f"/users/{test_user.id}",
+        json={"employment_status": "left"},
+        headers=manager_auth_headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["employment_status"] == "left"
+
+
+def test_update_employment_status_on_leave_ignores_caseload(
+    client, manager_auth_headers, test_user, db_session
+):
+    """'on_leave' isn't in the blocked set -- unlike suspended/left it's
+    expected to be temporary, so the caseload stays put."""
+    resident = Resident(name="Active Resident", status="active")
+    db_session.add(resident)
+    db_session.commit()
+    db_session.refresh(resident)
+    db_session.add(
+        ResidentAssignment(resident_id=resident.id, care_worker_id=test_user.id)
+    )
+    db_session.commit()
+
+    response = client.patch(
+        f"/users/{test_user.id}",
+        json={"employment_status": "on_leave"},
+        headers=manager_auth_headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["employment_status"] == "on_leave"
+
+
+def test_update_employment_status_already_left_can_be_resaved(
+    client, manager_auth_headers, test_user, db_session
+):
+    """Guard only fires on a *transition into* suspended/left, so saving
+    other fields on an already-left worker (still carrying stale caseload
+    data from before the guard existed) isn't blocked."""
+    resident = Resident(name="Active Resident", status="active")
+    db_session.add(resident)
+    db_session.commit()
+    db_session.refresh(resident)
+    db_session.add(
+        ResidentAssignment(resident_id=resident.id, care_worker_id=test_user.id)
+    )
+    test_user.employment_status = "left"
+    db_session.commit()
+
+    response = client.patch(
+        f"/users/{test_user.id}",
+        json={"employment_status": "left", "job_title": "Senior Carer"},
+        headers=manager_auth_headers,
+    )
+    assert response.status_code == 200
 
 
 # ---------------------------------------------------------------------------

@@ -9,6 +9,7 @@ from sqlalchemy import engine_from_config
 from app.models.handover_note import HandoverNote
 from app.models.pending_user import PendingUser
 from app.models.password_reset import PasswordReset
+from app.models.device_token import DeviceToken
 from sqlalchemy import pool
 
 from alembic import context

@@ -1,49 +1,123 @@
-# --- Environment / secrets ---
+# ==============================
+# Secrets / environment files
+# ==============================
 .env
-.env.production
+.env.*
+!.env.example
+!**/.env.example
+frontend/.env.production
+mobile/.env
+mobile/.env.*
+*firebase-adminsdk*.json
+google-services.json
+GoogleService-Info.plist
+*.pem
+*.key
+*.jks
+*.p8
+*.p12
+*.mobileprovision
 
-# --- Python ---
+# ==============================
+# Python
+# ==============================
 __pycache__/
-*.pyc
-*.pyo
+*.py[cod]
 *.pyd
 .Python
+*$py.class
 *.egg-info/
 *.egg
+.eggs/
 build/
 dist/
-
-frontend/.env
-
-# --- Virtual environment ---
 venv/
-env/
 .venv/
+env/
+ENV/
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
+*.db
 
-# --- Whisper model weights (large binaries, don't commit) ---
+# ==============================
+# Whisper model weights / temp audio
+# (large binaries — don't commit)
+# ==============================
 whisper_models/
-
-# --- Temp audio (should already get deleted at runtime, but just in case) ---
 temp_audio/
-*.wav
-*.mp3
-*.m4a
 
-# --- pytest / coverage (Stage 8) ---
+# ==============================
+# User-uploaded runtime media
+# (generated at runtime, not source — don't commit)
+# ==============================
+app/static/profile_pictures/*
+!app/static/profile_pictures/.gitkeep
+
+# ==============================
+# Testing / coverage
+# ==============================
 .pytest_cache/
 .coverage
+.coverage.*
+coverage.xml
 htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
 
-# --- Alembic (keep versions/, ignore nothing here — migrations SHOULD be committed) ---
-# (intentionally no alembic ignores — migration files belong in git)
+# ==============================
+# Frontend (Node/Vite)
+# ==============================
+frontend/node_modules/
+node_modules/
+frontend/dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.eslintcache
 
-# --- Editor / IDE ---
+# ==============================
+# Mobile (Expo / React Native)
+# ==============================
+mobile/node_modules/
+mobile/.expo/
+mobile/.expo-shared/
+mobile/dist/
+mobile/web-build/
+mobile/expo-env.d.ts
+mobile/.kotlin/
+mobile/.metro-health-check*
+mobile/app-example/
+mobile/*.tsbuildinfo
+mobile/npm-debug.log*
+mobile/yarn-debug.log*
+mobile/yarn-error.log*
+mobile/*.apk
+mobile/*.aab
+mobile/*.ipa
+
+# Only relevant if you ever run `expo prebuild` (bare workflow) —
+# remove these two lines if you're staying fully managed.
+mobile/ios/
+mobile/android/
+
+# ==============================
+# IDE / OS
+# ==============================
 .vscode/
 .idea/
 *.swp
-
-# --- OS cruft ---
+*.orig
+*.bak
 .DS_Store
 Thumbs.db
 
-Audio Test Files/
+# ==============================
+# Logs / misc
+# ==============================
+*.log
+*.pid
+
+# --- Alembic: migration files belong in git, no ignores here ---

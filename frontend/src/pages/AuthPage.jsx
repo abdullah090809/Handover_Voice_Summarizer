@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Mail, Lock, Hash, ArrowRight, Stethoscope, AlertCircle, CheckCircle2, ArrowLeft, UserRound, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, Hash, ArrowRight, AlertCircle, CheckCircle2, ArrowLeft, UserRound, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext.jsx';
 import { authApi, ApiError } from '../lib/api.js';
 import { Field, IconInput, OtpBoxInput } from '../components/Field.jsx';
@@ -23,7 +23,7 @@ export default function AuthPage() {
       <div className="auth-centered-inner">
         <div className="auth-brand-row">
           <div className="auth-side-brand-mark">
-            <Stethoscope size={18} />
+            <img src="/logo.png" alt="" />
           </div>
           <strong>Handover</strong>
         </div>

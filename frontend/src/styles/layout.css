@@ -106,18 +106,16 @@
 .sidebar-brand-mark {
   width: 34px;
   height: 34px;
-  border-radius: var(--radius-md);
-  background: var(--teal-600);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--white);
   flex-shrink: 0;
 }
 
-.sidebar-brand-mark svg {
-  width: 18px;
-  height: 18px;
+.sidebar-brand-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .sidebar-brand-text {
@@ -459,18 +457,16 @@
 .topbar-mobile-brand-mark {
   width: 28px;
   height: 28px;
-  border-radius: var(--radius-sm);
-  background: var(--teal-600);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
 }
 
-.topbar-mobile-brand-mark svg {
-  width: 15px;
-  height: 15px;
-  color: var(--white);
+.topbar-mobile-brand-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .topbar-mobile-brand strong {

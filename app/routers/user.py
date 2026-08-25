@@ -334,6 +334,42 @@ def update_user(
 
     previous_employment_status = user.employment_status
 
+    # A care worker with an active caseload still relies on someone covering
+    # it, whether they're being fully deactivated (see the dedicated
+    # /deactivate endpoint above) or just moved to 'suspended'/'left' here
+    # via the employment_status field -- either way they'd stop showing up
+    # as available and their residents would be left uncovered with no
+    # record of who picks them up. Block the transition and require the
+    # manager to reassign the caseload first, same rule as /deactivate.
+    if (
+        "employment_status" in data
+        and data["employment_status"] in ("suspended", "left")
+        and previous_employment_status not in ("suspended", "left")
+        and user.role == "care_worker"
+    ):
+        active_resident_count = (
+            db.query(Resident)
+            .join(
+                ResidentAssignment,
+                ResidentAssignment.resident_id == Resident.id,
+            )
+            .filter(
+                ResidentAssignment.care_worker_id == user.id,
+                Resident.status == "active",
+            )
+            .count()
+        )
+        if active_resident_count:
+            status_label = "suspended" if data["employment_status"] == "suspended" else "marked as left"
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"Cannot mark this care worker as {status_label}: they still have "
+                    f"{active_resident_count} active resident(s) assigned. "
+                    "Reassign their caseload first."
+                ),
+            )
+
     for field, value in data.items():
         setattr(user, field, value)
 

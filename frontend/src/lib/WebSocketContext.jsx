@@ -28,6 +28,22 @@ export function WebSocketProvider({ children }) {
     }
   }, [user]);
 
+  const showBrowserNotification = useCallback((title, options) => {
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+      try {
+        new Notification(title, options);
+      } catch (e) {
+        console.warn('HTML5 Notification failed', e);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (status === 'authed' && typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => { });
+    }
+  }, [status]);
+
   useEffect(() => {
     if (status !== 'authed' || !user) {
       if (wsRef.current) {
@@ -62,14 +78,21 @@ export function WebSocketProvider({ children }) {
         listenersRef.current.forEach((fn) => fn(data));
 
         if (data.type === 'handover_updated') {
+          const msg = `Handover note #${data.id} is now ${data.status}.`;
           showToast(
-            `Handover note #${data.id} is now ${data.status}.`,
+            msg,
             data.status === 'complete' ? 'success' : data.status === 'failed' ? 'error' : 'info'
           );
+          showBrowserNotification('🔄 Handover Update', {
+            body: msg,
+          });
         } else if (data.type === 'notification' && user.role === 'manager') {
           const urgent = data.urgency_flag === 'urgent' || data.urgency_flag === 'high';
           showToast(data.message, urgent ? 'warning' : 'info', { duration: 7000 });
           refreshUnreadCount();
+          showBrowserNotification(urgent ? '⚠️ Urgent Handover Alert' : '🔔 Notification', {
+            body: data.message,
+          });
         }
       };
 

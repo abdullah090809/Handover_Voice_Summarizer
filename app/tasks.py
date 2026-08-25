@@ -14,6 +14,7 @@ from app.models.resident import Resident
 from app.models.shift import Shift
 from app.models.user import User
 from app.services.email import send_urgent_handover_email, send_verification_email, send_password_reset_email
+from app.services.push_notification import send_push_notifications
 from app.services.summarizer import GeminiQuotaExceededError, summarize_transcript
 from app.services.transcription import transcribe_audio
 
@@ -38,6 +39,18 @@ def send_password_reset_email_task(to_email: str, otp_code: str) -> None:
     except Exception as e:
         logger.error(f"Async password reset email sending failed: {e}")
         raise
+
+
+@celery_app.task
+def send_push_notification_task(user_ids: list[int], title: str, body: str, data: dict | None = None) -> None:
+    db = SessionLocal()
+    try:
+        send_push_notifications(db, user_ids, title, body, data)
+    except Exception as e:
+        logger.error(f"Async push notification sending failed: {e}")
+        raise
+    finally:
+        db.close()
 
 
 @celery_app.task
@@ -283,6 +296,25 @@ def process_handover_note(self, note_id: int, tmp_path: str) -> None:
                             "Failed to send urgent handover email",
                             extra={"manager_email": manager_user.email, "note_id": note.id},
                         )
+
+                # Queue async push notifications for managers
+                try:
+                    manager_ids = [m.id for m in managers]
+                    send_push_notification_task.delay(
+                        user_ids=manager_ids,
+                        title="⚠️ Urgent Handover Alert",
+                        body=f"Urgent handover note recorded for resident {resident_name}.",
+                        data={
+                            "alert_id": db_notification.id,
+                            "handover_note_id": note.id,
+                            "resident_id": note.resident_id,
+                        }
+                    )
+                except Exception:
+                    logger.exception(
+                        "Failed to queue push notification task",
+                        extra={"note_id": note.id},
+                    )
             else:
                 logger.info(
                     "Notification already exists for note %s, skipping duplicate", note_id

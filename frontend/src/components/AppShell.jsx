@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Outlet, useLocation, Link } from 'react-router-dom';
-import { Menu, X, Bell, Stethoscope } from 'lucide-react';
+import { Menu, X, Bell } from 'lucide-react';
 import Sidebar from './Sidebar.jsx';
 import BottomNav from './BottomNav.jsx';
 import GlobalSearch from './GlobalSearch.jsx';
@@ -100,7 +100,7 @@ export default function AppShell() {
           </button>
           <div className="topbar-mobile-brand">
             <div className="topbar-mobile-brand-mark">
-              <Stethoscope size={15} />
+              <img src="/logo.png" alt="" />
             </div>
             <strong>Handover</strong>
           </div>

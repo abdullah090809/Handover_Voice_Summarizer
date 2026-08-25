@@ -119,5 +119,9 @@ Thumbs.db
 # ==============================
 *.log
 *.pid
+# ==============================
+# Audio test files (local only)
+# ==============================
+Audio Test Files/
 
 # --- Alembic: migration files belong in git, no ignores here ---

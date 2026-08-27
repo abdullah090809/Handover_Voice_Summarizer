@@ -2,9 +2,11 @@ import json
 import logging
 import os
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 import app.models
 from google.genai.errors import ClientError
 from app.cores.celery_app import celery_app
+from app.cores.config import settings
 from app.cores.database import SessionLocal
 from app.cores.redis_client import redis_client
 from app.models.handover_note import HandoverNote
@@ -111,30 +113,42 @@ def auto_clock_out_stale_shifts() -> int:
     makes closure unconditional instead of dependent on that worker's
     next session.
 
-    Day boundary is UTC, since there's no per-user timezone setting.
-    The frontend hook uses the browser's local day boundary instead, so
-    the two can disagree by a few hours right at midnight in either
-    direction -- acceptable, since this is a safety net for shifts left
-    open far longer than that.
+    Day boundary is computed per-shift, using the timezone captured from
+    the worker's device at clock-in (Shift.timezone). This makes the
+    behavior correct regardless of which country a care home operates in,
+    not just one hardcoded zone. Shifts with no stored timezone (older
+    rows, or a client that didn't send one) fall back to
+    app.cores.config.settings.app_timezone (UTC by default). The frontend
+    hook uses the browser's local day boundary directly, so the two can
+    still disagree by a few hours right at midnight in either direction --
+    acceptable, since this is a safety net for shifts left open far
+    longer than that.
     """
+    default_tz = ZoneInfo(settings.app_timezone)
     now_utc = datetime.now(timezone.utc)
-    today = now_utc.date()
 
     db = SessionLocal()
     try:
         open_shifts = db.query(Shift).filter(Shift.end_time.is_(None)).all()
         closed = 0
         for shift in open_shifts:
+            try:
+                local_tz = ZoneInfo(shift.timezone) if shift.timezone else default_tz
+            except Exception:
+                local_tz = default_tz  # unrecognized zone string -- don't fail the whole run
+
             start = shift.start_time
             if start.tzinfo is None:
                 start = start.replace(tzinfo=timezone.utc)
-            if start.date() >= today:
-                continue  # still today (or clock skew) -- leave it open
+            start_local = start.astimezone(local_tz)
+            today_local = now_utc.astimezone(local_tz).date()
+            if start_local.date() >= today_local:
+                continue  # still today locally (or clock skew) -- leave it open
 
-            end_of_start_day = datetime.combine(
-                start.date(), datetime.max.time(), tzinfo=timezone.utc
+            end_of_start_day_local = datetime.combine(
+                start_local.date(), datetime.max.time(), tzinfo=local_tz
             )
-            shift.end_time = end_of_start_day  # pyrefly: ignore [bad-assignment]
+            shift.end_time = end_of_start_day_local.astimezone(timezone.utc)  # pyrefly: ignore [bad-assignment]
             closed += 1
 
         db.commit()

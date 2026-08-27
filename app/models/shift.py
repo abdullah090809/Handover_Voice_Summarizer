@@ -1,4 +1,4 @@
-from sqlalchemy import Column, ForeignKey, Integer, TIMESTAMP
+from sqlalchemy import Column, ForeignKey, Integer, String, TIMESTAMP
 from sqlalchemy.orm import Session
 
 from app.cores.database import Base
@@ -16,6 +16,14 @@ class Shift(Base):
     )
     start_time = Column(TIMESTAMP(timezone=True), nullable=False)
     end_time = Column(TIMESTAMP(timezone=True), nullable=True)
+    # IANA timezone name (e.g. "Asia/Karachi", "America/New_York") captured
+    # from the client's device/browser at clock-in. Lets
+    # auto_clock_out_stale_shifts close a shift at *that worker's* local
+    # midnight rather than one hardcoded zone -- correct regardless of
+    # which country a care home operates in. Nullable: older rows created
+    # before this column existed, or a client that failed to send one,
+    # fall back to app.cores.config.settings.app_timezone (UTC by default).
+    timezone = Column(String, nullable=True)
 
 
 def compute_shift_numbers(db: Session, worker_ids: set[int]) -> dict[int, int]:

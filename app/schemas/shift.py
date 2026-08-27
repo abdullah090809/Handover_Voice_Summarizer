@@ -6,6 +6,11 @@ from pydantic import BaseModel, model_validator
 class ShiftCreate(BaseModel):
     start_time: datetime
     end_time: datetime | None = None
+    # IANA timezone name from the client (e.g. Intl.DateTimeFormat()
+    # .resolvedOptions().timeZone in JS). Optional so old clients / API
+    # callers that don't send it still work -- falls back server-side to
+    # settings.app_timezone.
+    timezone: str | None = None
 
     @model_validator(mode="after")
     def check_end_after_start(self):
@@ -19,6 +24,7 @@ class ShiftOut(BaseModel):
     worker_id: int
     start_time: datetime
     end_time: datetime | None = None
+    timezone: str | None = None
     # Computed at read time (see app.models.shift.compute_shift_numbers) —
     # not a database column. A stable, gap-free, per-worker ordinal for
     # display, since the raw `id` is a system-wide sequence and jumps

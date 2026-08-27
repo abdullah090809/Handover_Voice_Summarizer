@@ -360,13 +360,21 @@ export const assignmentApi = {
 // ---------------------------------------------------------------------------
 // Shifts
 // ---------------------------------------------------------------------------
+function localTimezone(): string | null {
+    try {
+        return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+    } catch {
+        return null; // server falls back to settings.app_timezone
+    }
+}
+
 export const shiftApi = {
     list: (workerId?: number | string) => parse(request(`/shifts/${workerId ? `?worker_id=${workerId}` : ''}`)),
     get: (id: number | string) => parse(request(`/shifts/${id}`)),
     create: (startTime: string, endTime?: string | null) =>
-        parse(request('/shifts/', { method: 'POST', body: { start_time: startTime, end_time: endTime || null } as any })),
+        parse(request('/shifts/', { method: 'POST', body: { start_time: startTime, end_time: endTime || null, timezone: localTimezone() } as any })),
     update: (id: number | string, startTime: string, endTime?: string | null) =>
-        parse(request(`/shifts/${id}`, { method: 'PUT', body: { start_time: startTime, end_time: endTime || null } as any })),
+        parse(request(`/shifts/${id}`, { method: 'PUT', body: { start_time: startTime, end_time: endTime || null, timezone: localTimezone() } as any })),
     remove: (id: number | string) => parse(request(`/shifts/${id}`, { method: 'DELETE' })),
 };
 

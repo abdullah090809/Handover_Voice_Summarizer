@@ -199,11 +199,19 @@ export const assignmentApi = {
 // ---------------------------------------------------------------------------
 // Shifts
 // ---------------------------------------------------------------------------
+function localTimezone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+  } catch {
+    return null; // very old browser -- server falls back to settings.app_timezone
+  }
+}
+
 export const shiftApi = {
   list: (workerId) => parse(request(`/shifts/${workerId ? `?worker_id=${workerId}` : ''}`)),
   get: (id) => parse(request(`/shifts/${id}`)),
-  create: (startTime, endTime) => parse(request('/shifts/', { method: 'POST', body: { start_time: startTime, end_time: endTime || null } })),
-  update: (id, startTime, endTime) => parse(request(`/shifts/${id}`, { method: 'PUT', body: { start_time: startTime, end_time: endTime || null } })),
+  create: (startTime, endTime) => parse(request('/shifts/', { method: 'POST', body: { start_time: startTime, end_time: endTime || null, timezone: localTimezone() } })),
+  update: (id, startTime, endTime) => parse(request(`/shifts/${id}`, { method: 'PUT', body: { start_time: startTime, end_time: endTime || null, timezone: localTimezone() } })),
   remove: (id) => parse(request(`/shifts/${id}`, { method: 'DELETE' })),
 };
 

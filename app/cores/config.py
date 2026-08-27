@@ -29,6 +29,13 @@ class Settings(BaseSettings):
     # (None, the default) to let Whisper auto-detect the spoken language
     # across its full language list, with no restriction to any subset.
     whisper_language: str | None = None
+    # IANA timezone name (e.g. "Asia/Karachi", "Europe/London") used to
+    # decide what "end of day" means for auto_clock_out_stale_shifts.
+    # Defaults to UTC. This app has no per-care-home settings table (see
+    # note in app/models/user.py), so this is a single app-wide setting --
+    # correct for a single-region deployment, and easy to change per
+    # deployment if this app is ever run for a care home in another zone.
+    app_timezone: str = "UTC"
 
     class Config:
         env_file = _ENV_FILE

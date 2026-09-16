@@ -41,3 +41,12 @@ frontend/
 tests/
 .pytest_cache/
 alembic/versions/__pycache__/
+.coverage
+.coverage.*
+htmlcov/
+app/static/profile_pictures/*
+!app/static/profile_pictures/.gitkeep
+Audio Test Files/
+whisper_models/
+temp_audio/
+*.log

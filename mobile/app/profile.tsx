@@ -310,6 +310,12 @@ export default function ProfileScreen() {
     const totalFields = completionFlags.length;
     const completionPct = Math.round((completedFields / totalFields) * 100);
     const isIncomplete = completedFields < totalFields;
+    const missingLabels = [
+        !user.profile_photo_url && 'profile photo',
+        !user.job_title && 'job title',
+        !user.phone_number && 'phone number',
+        !user.bio && 'bio',
+    ].filter(Boolean) as string[];
 
     const openEdit = () => router.push('/edit-profile');
 
@@ -357,14 +363,19 @@ export default function ProfileScreen() {
                 </View>
 
                 {isIncomplete && (
-                    <View style={styles.progressRow}>
-                        <View style={styles.progressSteps}>
-                            {completionFlags.map((done, i) => (
-                                <View key={i} style={[styles.progressStep, done && styles.progressStepFilled]} />
-                            ))}
+                    <>
+                        <View style={styles.progressRow}>
+                            <View style={styles.progressSteps}>
+                                {completionFlags.map((done, i) => (
+                                    <View key={i} style={[styles.progressStep, done && styles.progressStepFilled]} />
+                                ))}
+                            </View>
+                            <Text style={styles.progressLabel}>{completionPct}% profile complete</Text>
                         </View>
-                        <Text style={styles.progressLabel}>{completionPct}% profile complete</Text>
-                    </View>
+                        {missingLabels.length > 0 && (
+                            <Text style={styles.progressHint}>Still missing: {missingLabels.join(', ')}.{!user.profile_photo_url ? ' Add the photo with the camera button on your picture.' : ''}</Text>
+                        )}
+                    </>
                 )}
 
                 {/* Post-M6f nav-parity pass: Team / Alerts / Audit link cards
@@ -581,6 +592,7 @@ function createStyles(colors: BrandColors) {
             paddingHorizontal: space[6],
             paddingTop: space[5],
         },
+        progressHint: { fontFamily: fontFamily.ui, fontSize: fontSize.xs, color: colors.textTertiary, paddingHorizontal: space[6], paddingTop: space[2] },
         progressSteps: { flexDirection: 'row', gap: 3, flex: 1 },
         progressStep: { flex: 1, height: 5, minWidth: 6, borderRadius: radius.full, backgroundColor: colors.surfaceHoverStrong },
         progressStepFilled: { backgroundColor: colors.teal[500] },

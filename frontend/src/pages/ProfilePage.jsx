@@ -128,6 +128,12 @@ export default function ProfilePage() {
   const totalFields = completionFlags.length;
   const completionPct = Math.round((completedFields / totalFields) * 100);
   const isIncomplete = completedFields < totalFields;
+  const missingLabels = [
+    !user.profile_photo_url && 'profile photo',
+    !user.job_title && 'job title',
+    !user.phone_number && 'phone number',
+    !user.bio && 'bio',
+  ].filter(Boolean);
 
   return (
     <>
@@ -185,6 +191,9 @@ export default function ProfilePage() {
               ))}
             </div>
             <span className="profile-progress-label">{completionPct}% profile complete</span>
+            <span className="profile-progress-label" style={{ flexBasis: '100%' }}>
+              Still missing: {missingLabels.join(', ')}.{!user.profile_photo_url ? ' Add the photo with the camera button on your picture.' : ''}
+            </span>
           </div>
         )}
 

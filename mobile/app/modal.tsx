@@ -7,7 +7,6 @@ import {
   Pressable,
   StyleSheet,
   ActivityIndicator,
-  ScrollView,
   FlatList,
 } from 'react-native';
 import Feather from '@expo/vector-icons/Feather';
@@ -23,6 +22,7 @@ import {
 import { residentApi, shiftApi, handoverApi, ApiError } from '@/lib/api';
 import { fontFamily, fontSize, space, radius, shadow, type BrandColors } from '@/constants/design-tokens';
 import { useThemeColors } from '@/lib/theme-context';
+import { KeyboardAwareScrollView } from '@/components/keyboard-aware-scroll-view';
 
 // Stage M4.5 -- restyled with the shared design tokens. Resident rows/chips
 // mirror the web app's .list-row + .badge patterns; the record panel's
@@ -196,7 +196,7 @@ export default function NewHandoverScreen() {
   }
 
   return (
-    <ScrollView style={styles.flex} contentContainerStyle={styles.container}>
+    <KeyboardAwareScrollView style={styles.flex} contentContainerStyle={styles.container}>
       <Stack.Screen options={{ title: 'New Handover' }} />
       <Text style={styles.subtitle}>Record an audio note — it&apos;s transcribed and summarized automatically.</Text>
 
@@ -302,7 +302,7 @@ export default function NewHandoverScreen() {
       <Pressable style={styles.cancelButton} onPress={() => router.back()}>
         <Text style={styles.cancelButtonText}>Cancel</Text>
       </Pressable>
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 }
 

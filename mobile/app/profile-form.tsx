@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { useAuth } from '@/lib/auth-context';
 import { userApi, ApiError } from '@/lib/api';
 import { toDateInputValue } from '@/lib/format';
 import { fontFamily, fontSize, space, radius, type BrandColors } from '@/constants/design-tokens';
 import { useThemeColors } from '@/lib/theme-context';
 import { SelectField } from '@/components/select-field';
+import { KeyboardAwareScrollView } from '@/components/keyboard-aware-scroll-view';
 
 // Stage M7 -- ported from the web app's CareWorkerFormModal.jsx /
 // ManagerFormModal.jsx (the two are near-identical, differing only in
@@ -153,7 +154,7 @@ export default function ProfileFormScreen() {
     }
 
     return (
-        <ScrollView style={styles.flex} contentContainerStyle={styles.container}>
+        <KeyboardAwareScrollView style={styles.flex} contentContainerStyle={styles.container}>
             <Stack.Screen options={{ title: isManagerProfile ? 'Edit manager profile' : 'Edit care worker profile' }} />
             <Text style={styles.subtitle}>Employment, personal, and emergency contact details.</Text>
 
@@ -218,7 +219,7 @@ export default function ProfileFormScreen() {
             <Pressable style={styles.cancelButton} onPress={() => router.back()}>
                 <Text style={styles.cancelButtonText}>Cancel</Text>
             </Pressable>
-        </ScrollView>
+        </KeyboardAwareScrollView>
     );
 }
 

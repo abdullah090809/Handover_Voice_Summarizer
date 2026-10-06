@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { useAuth } from '@/lib/auth-context';
 import { residentApi, ApiError } from '@/lib/api';
 import { toDateInputValue } from '@/lib/format';
@@ -8,6 +8,7 @@ import { fontFamily, fontSize, space, radius, type BrandColors } from '@/constan
 import { useThemeColors } from '@/lib/theme-context';
 import { SelectField } from '@/components/select-field';
 import { TagInput } from '@/components/tag-input';
+import { KeyboardAwareScrollView } from '@/components/keyboard-aware-scroll-view';
 
 // Ported from the web app's ResidentFormModal.jsx. Handles both "Add
 // resident" (Residents list FAB, no id param) and "Edit resident"
@@ -177,7 +178,7 @@ export default function ResidentFormScreen() {
     }
 
     return (
-        <ScrollView style={styles.flex} contentContainerStyle={styles.container}>
+        <KeyboardAwareScrollView style={styles.flex} contentContainerStyle={styles.container}>
             <Stack.Screen options={{ title: isEdit ? 'Edit resident' : 'Add resident' }} />
             {!isEdit && (
                 <Text style={styles.subtitle}>Only full name is required — the rest can be filled in any time.</Text>
@@ -280,7 +281,7 @@ export default function ResidentFormScreen() {
             <Pressable style={styles.cancelButton} onPress={() => router.back()}>
                 <Text style={styles.cancelButtonText}>Cancel</Text>
             </Pressable>
-        </ScrollView>
+        </KeyboardAwareScrollView>
     );
 }
 

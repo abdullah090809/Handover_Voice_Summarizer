@@ -364,17 +364,17 @@ export default function ProfileScreen() {
 
                 {isIncomplete && (
                     <>
-                        <View style={styles.progressRow}>
-                            <View style={styles.progressSteps}>
-                                {completionFlags.map((done, i) => (
-                                    <View key={i} style={[styles.progressStep, done && styles.progressStepFilled]} />
-                                ))}
-                            </View>
-                            <Text style={styles.progressLabel}>{completionPct}% profile complete</Text>
+                    <View style={styles.progressRow}>
+                        <View style={styles.progressSteps}>
+                            {completionFlags.map((done, i) => (
+                                <View key={i} style={[styles.progressStep, done && styles.progressStepFilled]} />
+                            ))}
                         </View>
-                        {missingLabels.length > 0 && (
-                            <Text style={styles.progressHint}>Still missing: {missingLabels.join(', ')}.{!user.profile_photo_url ? ' Add the photo with the camera button on your picture.' : ''}</Text>
-                        )}
+                        <Text style={styles.progressLabel}>{completionPct}% profile complete</Text>
+                    </View>
+                    {missingLabels.length > 0 && (
+                        <Text style={styles.progressHint}>Still missing: {missingLabels.join(', ')}.{!user.profile_photo_url ? ' Add the photo with the camera button on your picture.' : ''}</Text>
+                    )}
                     </>
                 )}
 

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Modal, View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { Modal, KeyboardAvoidingView, View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { fontFamily, fontSize, space, radius, shadow, type BrandColors } from '@/constants/design-tokens';
 import { useThemeColors } from '@/lib/theme-context';
 import { userApi, ApiError } from '@/lib/api';
@@ -55,6 +55,7 @@ export function ResetPasswordModal({
 
     return (
         <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
+            <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
             <Pressable style={styles.backdrop} onPress={handleClose}>
                 <Pressable style={styles.card} onPress={() => {}}>
                     <Text style={styles.title}>Reset password</Text>
@@ -83,6 +84,7 @@ export function ResetPasswordModal({
                     </View>
                 </Pressable>
             </Pressable>
+            </KeyboardAvoidingView>
         </Modal>
     );
 }

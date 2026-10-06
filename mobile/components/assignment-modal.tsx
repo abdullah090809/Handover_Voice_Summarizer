@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Modal, View, Text, TextInput, Pressable, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
+import { Modal, KeyboardAvoidingView, View, Text, TextInput, Pressable, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
 import Feather from '@expo/vector-icons/Feather';
 import { fontFamily, fontSize, space, radius, shadow, type BrandColors } from '@/constants/design-tokens';
 import { useThemeColors } from '@/lib/theme-context';
@@ -124,6 +124,7 @@ export function AssignmentModal({
 
     return (
         <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
+            <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
             <Pressable style={styles.backdrop} onPress={handleClose}>
                 <Pressable style={styles.sheet} onPress={() => {}}>
                     <View style={styles.header}>
@@ -220,6 +221,7 @@ export function AssignmentModal({
                     </View>
                 </Pressable>
             </Pressable>
+            </KeyboardAvoidingView>
         </Modal>
     );
 }

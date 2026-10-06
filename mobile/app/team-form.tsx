@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { useAuth } from '@/lib/auth-context';
 import { userApi, ApiError } from '@/lib/api';
 import { fontFamily, fontSize, space, radius, type BrandColors } from '@/constants/design-tokens';
 import { useThemeColors } from '@/lib/theme-context';
 import { SelectField } from '@/components/select-field';
+import { KeyboardAwareScrollView } from '@/components/keyboard-aware-scroll-view';
 
 // Stage M7 -- ported from the web app's UserFormModal.jsx. Handles both
 // "Add team member" (no params) and the Team list's row-menu "Edit"
@@ -72,7 +73,7 @@ export default function TeamFormScreen() {
     }
 
     return (
-        <ScrollView style={styles.flex} contentContainerStyle={styles.container}>
+        <KeyboardAwareScrollView style={styles.flex} contentContainerStyle={styles.container}>
             <Stack.Screen options={{ title: isEdit ? 'Edit team member' : 'Add team member' }} />
             <Text style={styles.subtitle}>
                 {isEdit ? 'Update this team member\u2019s account details.' : 'Create a new staff account for your team.'}
@@ -134,7 +135,7 @@ export default function TeamFormScreen() {
             <Pressable style={styles.cancelButton} onPress={() => router.back()}>
                 <Text style={styles.cancelButtonText}>Cancel</Text>
             </Pressable>
-        </ScrollView>
+        </KeyboardAwareScrollView>
     );
 }
 

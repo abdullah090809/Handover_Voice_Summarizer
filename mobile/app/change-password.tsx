@@ -1,9 +1,10 @@
 import { useState, useMemo } from 'react';
 import { Stack, useRouter } from 'expo-router';
-import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, ScrollView, Alert } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { userApi, ApiError } from '@/lib/api';
 import { fontFamily, fontSize, space, radius, type BrandColors } from '@/constants/design-tokens';
 import { useThemeColors } from '@/lib/theme-context';
+import { KeyboardAwareScrollView } from '@/components/keyboard-aware-scroll-view';
 
 // New this session (post-M6f nav-parity pass). Ported from the web app's
 // ChangePasswordModal.jsx, as its own pushed modal screen -- same reasoning
@@ -44,7 +45,7 @@ export default function ChangePasswordScreen() {
     }
 
     return (
-        <ScrollView style={styles.flex} contentContainerStyle={styles.container}>
+        <KeyboardAwareScrollView style={styles.flex} contentContainerStyle={styles.container}>
             <Stack.Screen options={{ title: 'Change password' }} />
             <Text style={styles.subtitle}>Choose a new password for your account.</Text>
 
@@ -94,7 +95,7 @@ export default function ChangePasswordScreen() {
             <Pressable style={styles.cancelButton} onPress={() => router.back()}>
                 <Text style={styles.cancelButtonText}>Cancel</Text>
             </Pressable>
-        </ScrollView>
+        </KeyboardAwareScrollView>
     );
 }
 

@@ -11,6 +11,8 @@ import { RequireAuth, RequireManager, RedirectIfAuthed } from './components/Rout
 import AppShell from './components/AppShell.jsx';
 
 import AuthPage from './pages/AuthPage.jsx';
+import LandingPage from './pages/LandingPage.jsx';
+import LegalPage from './pages/LegalPage.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
 import HandoversPage from './pages/HandoversPage.jsx';
 import ResidentsPage from './pages/ResidentsPage.jsx';
@@ -97,7 +99,10 @@ export default function App() {
                   />
                 </Route>
 
-                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/" element={<LandingPage />} />
+                <Route path="/privacy" element={<LegalPage />} />
+                <Route path="/terms" element={<LegalPage />} />
+                <Route path="/cookies" element={<LegalPage />} />
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />
               </Routes>
             </WebSocketProvider>

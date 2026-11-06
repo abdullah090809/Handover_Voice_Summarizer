@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Mail, Lock, Hash, ArrowRight, AlertCircle, CheckCircle2, ArrowLeft, UserRound, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext.jsx';
 import { authApi, ApiError } from '../lib/api.js';
@@ -8,7 +9,8 @@ import { useTurnstile } from '../lib/useTurnstile.js';
 const VIEWS = ['login', 'register', 'verify', 'forgot', 'reset'];
 
 export default function AuthPage() {
-  const [view, setView] = useState('login');
+  const [searchParams] = useSearchParams();
+  const [view, setView] = useState(searchParams.get('view') === 'register' ? 'register' : 'login');
   const [prefillEmail, setPrefillEmail] = useState('');
   const [banner, setBanner] = useState(null); // { type: 'success'|'error', message }
 
